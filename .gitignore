@@ -1,0 +1,5 @@
+.env
+.venv/
+token.save
+fig.png
+burner_data.csv

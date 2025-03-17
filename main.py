@@ -1,35 +1,47 @@
 #! python
+import logging
+import os
+import sys
+import time
+from datetime import datetime, timedelta
 
+import dotenv
 import pandas as pd
 import seaborn as sns
-from datetime import datetime, timedelta
-import logging
 from PyViCare.PyViCare import PyViCare
-from matplotlib import pyplot as plt
-import fire
-import dotenv
-import os
+from tqdm import tqdm
 
 dotenv.load_dotenv()
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
+logger = logging.getLogger("ViCareUB2")
+
 
 def get_device():
     client_id = os.getenv("CLIENT_ID")
     email = os.getenv("EMAIL")
     password = os.getenv("PASSWORD")
+    if (
+        not isinstance(email, str)
+        or not isinstance(password, str)
+        or not isinstance(client_id, str)
+    ):
+        raise ValueError("Invalid email, password, or client_id")
     vicare = PyViCare()
     vicare.initWithCredentials(email, password, client_id, "token.save")
-    device = vicare.devices[0]
+    logger.info("authenticated")
+    devices = vicare.devices
+    device = devices[1]
     t = device.asAutoDetectDevice()
     return t
 
 
 def write_data(t):
-    burner = t.getBurner(0)  # select burner
+    burner = t.burners[0]  # select burner
     circuit = t.circuits[0]  # select heating circuit
+
     temp_out = t.getOutsideTemperature()
     temp_boiler = t.getBoilerTemperature()
     temp_hotwater = t.getDomesticHotWaterStorageTemperature()
@@ -67,13 +79,17 @@ def get_data_for_plotting():
         "solar_production",
     ]
     bdf = pd.read_csv("burner_data.csv", names=colnames)[-1000:]
-    bdf["time"] = pd.to_datetime(bdf["timestamp"], unit="s") + timedelta(hours=2)
+    if not isinstance(bdf, pd.DataFrame):
+        raise ValueError("Invalid data type")
+    bdf["time"] = pd.to_datetime(bdf["timestamp"], unit="s") + timedelta(hours=1)
     bdf = bdf[bdf["time"].between(datetime.now() + timedelta(days=-2), datetime.now())]
     bdf["hours"] = bdf["hours"] - bdf["hours"].min()
     bdf["modulation"] = 2 + bdf["modulation"] / 50
     bdf["starts"] = bdf["starts"] - bdf["starts"].min()
     bdf["starts"] = 10 * (bdf["starts"] / bdf["starts"].max())
     bdf = bdf[~bdf.temp_heating.isna()]
+    if not isinstance(bdf, pd.DataFrame):
+        raise ValueError("Invalid data type")
     bdf = bdf.drop_duplicates(
         colnames[1:],
         keep="first",
@@ -83,6 +99,8 @@ def get_data_for_plotting():
 
 
 def make_plot(melted):
+    from matplotlib import pyplot as plt
+
     temps = [
         "temp_boiler",
         "temp_hotwater",
@@ -93,9 +111,7 @@ def make_plot(melted):
     fig, ax = plt.subplots(2, 1, figsize=(12, 16))
     _ = sns.lineplot(
         data=melted[
-            melted.variable.isin(
-                ["hours", "active", "modulation", "starts", "solar_production"]
-            )
+            melted.variable.isin(["hours", "active", "modulation", "starts", "solar_production"])
         ],
         x="time",
         y="value",
@@ -132,21 +148,43 @@ def make_plot(melted):
     fig.suptitle(
         f"Last generated {datetime.now().replace(microsecond=0)}; last data point {melted.iloc[-1,0]}"
     )
-    return plt
+    plt.savefig("./fig.png")
 
 
-def main(plot_only=False):
-    logging.log(logging.INFO, "starting")
-    if not plot_only:
-        logging.log(logging.INFO, "getting data")
+def main(plot=False, collect=True):
+    logger.info("starting")
+    if collect:
+        logger.info("getting data")
         t = get_device()
         write_data(t)
-    logging.log(logging.INFO, "plotting")
-    melted = get_data_for_plotting()
-    make_plot(melted)
-    logging.log(logging.INFO, "saving")
-    plt.savefig("/home/tim/projects/flarum-docker/assets/ub2/fig.png")
+    if plot:
+        logger.info("plotting")
+        melted = get_data_for_plotting()
+        logger.info("saving")
+        make_plot(melted)
 
 
 if __name__ == "__main__":
-    fire.Fire(main)
+    # fire.Fire(main)
+    plot = "--plot" in sys.argv
+    collect = "--collect" in sys.argv
+    once = "--once" in sys.argv
+
+    # If no arguments provided, default collect to True
+    if len(sys.argv) <= 1:
+        collect = True
+
+    while True and not once:
+        logging.info("Starting next iteration of the monitoring loop")
+        try:
+            main(plot, collect)
+        except Exception as e:
+            logger.error(f"Error occurred: {e}")
+        # Wait for 5 minutes (300 seconds) before running again, with a progress bar
+        for _ in tqdm(range(300), desc="Time until next iteration", unit="s"):
+            time.sleep(1)
+
+    if once:
+        main(plot, collect)
+    else:
+        logging.info("Exiting")
