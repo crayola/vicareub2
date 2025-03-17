@@ -37,6 +37,7 @@ def write_data(t):
     temp_solar_collector = t.getSolarCollectorTemperature()
     temp_solar_storage = t.getSolarStorageTemperature()
     solar_production = t.getSolarPowerProductionToday()
+    solar_pump = t.getSolarPumpActive()
     temp_heating = circuit.getSupplyTemperature()
     b_active = burner.getActive()
     b_mod = burner.getModulation()
@@ -45,7 +46,7 @@ def write_data(t):
     b_time = int(datetime.now().timestamp())
     with open("./burner_data.csv", "a") as f:
         f.write(
-            f"{b_time},{1 if b_active else 0},{b_mod},{b_hours},{b_starts},{temp_out},{temp_boiler},{temp_hotwater},{temp_hotwater_target},{temp_heating},{temp_solar_collector},{temp_solar_storage},{solar_production}\n"
+            f"{b_time},{1 if b_active else 0},{b_mod},{b_hours},{b_starts},{temp_out},{temp_boiler},{temp_hotwater},{temp_hotwater_target},{temp_heating},{temp_solar_collector},{temp_solar_storage},{solar_production},{1 if solar_pump else 0}\n"
         )
     return None
 
@@ -65,10 +66,12 @@ def get_data_for_plotting():
         "temp_solcollector",
         "temp_solstorage",
         "solar_production",
+        "solar_pump",
     ]
     bdf = pd.read_csv("burner_data.csv", names=colnames)[-1000:]
     bdf["time"] = pd.to_datetime(bdf["timestamp"], unit="s") + timedelta(hours=2)
-    bdf = bdf[bdf["time"].between(datetime.now() + timedelta(days=-2), datetime.now())]
+    #bdf = bdf[bdf["time"].between(datetime.now() + timedelta(days=-2), datetime.now())]
+    bdf = bdf[bdf["time"] > datetime.now() + timedelta(days=-2)]
     bdf["hours"] = bdf["hours"] - bdf["hours"].min()
     bdf["modulation"] = 2 + bdf["modulation"] / 50
     bdf["starts"] = bdf["starts"] - bdf["starts"].min()
@@ -94,7 +97,7 @@ def make_plot(melted):
     _ = sns.lineplot(
         data=melted[
             melted.variable.isin(
-                ["hours", "active", "modulation", "starts", "solar_production"]
+                ["hours", "active", "modulation", "starts", "solar_production","solar_pump"]
             )
         ],
         x="time",
