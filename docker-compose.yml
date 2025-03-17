@@ -1,0 +1,15 @@
+services:
+  vicareub2:
+    build:
+      dockerfile: Dockerfile
+    volumes:
+      - .:/app
+    # develop:
+    #   watch:
+    #     - action: sync
+    #       path: .
+    #       target: /app
+    #       ignore:
+    #         - .venv/
+    #     - action: rebuild
+    #       path: ./pyproject.toml

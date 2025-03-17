@@ -181,7 +181,9 @@ if __name__ == "__main__":
         except Exception as e:
             logger.error(f"Error occurred: {e}")
         # Wait for 5 minutes (300 seconds) before running again, with a progress bar
-        for _ in tqdm(range(300), desc="Time until next iteration", unit="s"):
+        print("boo")
+        for i in tqdm(range(300), desc="Time until next iteration", unit="s"):
+            logger.info("")
             time.sleep(1)
 
     if once:
