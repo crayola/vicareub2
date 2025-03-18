@@ -5,6 +5,8 @@ services:
       dockerfile: Dockerfile
     volumes:
       - .:/app
+    ports:
+      - "8000:8000"
     # develop:
     #   watch:
     #     - action: sync

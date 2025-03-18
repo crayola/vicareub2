@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import time
+import threading
 from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta
 
@@ -11,6 +12,8 @@ import pandas as pd
 import seaborn as sns
 from PyViCare.PyViCare import PyViCare
 from tqdm import tqdm
+from flask import Flask, send_file, jsonify
+import atexit
 
 tz = ZoneInfo('Europe/Berlin')
 
@@ -21,6 +24,10 @@ logging.basicConfig(
 )
 logger = logging.getLogger("ViCareUB2")
 
+# Global flag to control the background thread
+running = True
+
+app = Flask(__name__)
 
 def get_device():
     client_id = os.getenv("CLIENT_ID")
@@ -158,6 +165,64 @@ def make_plot(melted):
     plt.savefig("./fig.png")
 
 
+def background_task():
+    """Background task that collects data and updates the plot every 5 minutes"""
+    global running
+    while running:
+        try:
+            logger.info("Starting background data collection and plotting")
+            main(plot=True, collect=True)
+            logger.info("Completed background data collection and plotting")
+        except Exception as e:
+            logger.error(f"Error in background task: {e}")
+        
+        # Wait for 5 minutes
+        for _ in range(300):
+            if not running:
+                break
+            time.sleep(1)
+
+@app.route('/')
+def index():
+    """Serve the main page with the plot"""
+    return """
+    <html>
+        <head>
+            <title>ViCare Monitoring</title>
+            <meta http-equiv="refresh" content="300">
+            <style>
+                body {{ font-family: Arial, sans-serif; margin: 20px; }}
+                img {{ max-width: 50%; height: auto; }}
+            </style>
+        </head>
+        <body>
+            <h1>ViCare Monitoring</h1>
+            <p>Last updated: {}</p>
+            <img src="/plot" alt="ViCare Monitoring Plot">
+        </body>
+    </html>
+    """.format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+
+@app.route('/plot')
+def serve_plot():
+    """Serve the plot image"""
+    try:
+        return send_file('fig.png', mimetype='image/png')
+    except Exception as e:
+        logger.error(f"Error serving plot: {e}")
+        return "Error serving plot", 500
+
+@app.route('/health')
+def health_check():
+    """Health check endpoint"""
+    return jsonify({"status": "healthy"})
+
+def cleanup():
+    """Cleanup function to stop the background thread"""
+    global running
+    running = False
+    logger.info("Stopping background task")
+
 def main(plot=False, collect=True):
     logger.info("starting")
     if collect:
@@ -170,30 +235,14 @@ def main(plot=False, collect=True):
         logger.info("saving")
         make_plot(melted)
 
-
 if __name__ == "__main__":
-    # fire.Fire(main)
-    plot = "--plot" in sys.argv
-    collect = "--collect" in sys.argv
-    once = "--once" in sys.argv
-
-    # If no arguments provided, default collect to True
-    if len(sys.argv) <= 1:
-        collect = True
-
-    while True and not once:
-        logging.info("Starting next iteration of the monitoring loop")
-        try:
-            main(plot, collect)
-        except Exception as e:
-            logger.exception(f"Error occurred: {e}")
-        # Wait for 5 minutes (300 seconds) before running again, with a progress bar
-        print("boo")
-        for i in tqdm(range(30), desc="Time until next iteration", unit="s"):
-            logger.info("")
-            time.sleep(10)
-
-    if once:
-        main(plot, collect)
-    else:
-        logging.info("Exiting")
+    # Register cleanup function
+    atexit.register(cleanup)
+    
+    # Start background thread
+    background_thread = threading.Thread(target=background_task)
+    background_thread.daemon = True
+    background_thread.start()
+    
+    # Run Flask app
+    app.run(host='0.0.0.0', port=8000, debug=False)
