@@ -1,6 +1,7 @@
 services:
   vicareub2:
     build:
+      context: .
       dockerfile: Dockerfile
     volumes:
       - .:/app

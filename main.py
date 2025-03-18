@@ -3,6 +3,7 @@ import logging
 import os
 import sys
 import time
+from zoneinfo import ZoneInfo
 from datetime import datetime, timedelta
 
 import dotenv
@@ -10,6 +11,8 @@ import pandas as pd
 import seaborn as sns
 from PyViCare.PyViCare import PyViCare
 from tqdm import tqdm
+
+tz = ZoneInfo('Europe/Berlin')
 
 dotenv.load_dotenv()
 
@@ -84,7 +87,7 @@ def get_data_for_plotting():
     if not isinstance(bdf, pd.DataFrame):
         raise ValueError("Invalid data type")
     bdf["time"] = pd.to_datetime(bdf["timestamp"], unit="s") + timedelta(hours=1)
-    bdf = bdf[bdf["time"] > datetime.now() + timedelta(days=-2)]
+    bdf = bdf[pd.to_datetime(bdf["time"]) > datetime.now() + timedelta(days=-2)]
     bdf["hours"] = bdf["hours"] - bdf["hours"].min()
     bdf["modulation"] = 2 + bdf["modulation"] / 50
     bdf["starts"] = bdf["starts"] - bdf["starts"].min()
@@ -150,7 +153,7 @@ def make_plot(melted):
         if x2 > now:
             x2 = now
     fig.suptitle(
-        f"Last generated {datetime.now().replace(microsecond=0)}; last data point {melted.iloc[-1,0]}"
+        f"Last generated {datetime.now(tz).replace(microsecond=0)}; last data point {melted.iloc[-1,0]}"
     )
     plt.savefig("./fig.png")
 
@@ -183,12 +186,12 @@ if __name__ == "__main__":
         try:
             main(plot, collect)
         except Exception as e:
-            logger.error(f"Error occurred: {e}")
+            logger.exception(f"Error occurred: {e}")
         # Wait for 5 minutes (300 seconds) before running again, with a progress bar
         print("boo")
-        for i in tqdm(range(300), desc="Time until next iteration", unit="s"):
+        for i in tqdm(range(30), desc="Time until next iteration", unit="s"):
             logger.info("")
-            time.sleep(1)
+            time.sleep(10)
 
     if once:
         main(plot, collect)
