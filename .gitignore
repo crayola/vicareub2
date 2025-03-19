@@ -3,3 +3,4 @@
 token.save
 fig.png
 burner_data.csv
+__pycache__
