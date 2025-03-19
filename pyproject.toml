@@ -1,17 +1,33 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
 [project]
-name = "vicareub2"
+name = "pyvicareub2"
 version = "0.1.0"
-description = ""
-requires-python = ">=3.13"
-dependencies = [
-    "requests>=2.27.1",
-    "PyViCare",
-    "pandas>=1.4.1",
-    "matplotlib>=3.5.1",
-    "seaborn>=0.11.2",
-    "ipykernel>=6.15.3",
-    "fire>=0.4.0",
-    "python-dotenv>=1.0.1",
-    "tqdm>=4.67.1",
-    "flask>=3.0.0",
+description = "A monitoring tool for ViCare heating systems"
+readme = "README.md"
+requires-python = ">=3.12"
+license = {text = "MIT"}
+authors = [
+    {name = "Tim"}
 ]
+classifiers = [
+    "Development Status :: 3 - Alpha",
+    "Intended Audience :: End Users/Desktop",
+    "Topic :: Home Automation",
+]
+dependencies = [
+    "flask>=3.0.0",
+    "pandas>=2.2.0",
+    "seaborn>=0.13.0",
+    "matplotlib>=3.8.0",
+    "PyViCare>=2.0.0",
+    "pydantic-settings>=2.0.0",
+    "python-dotenv>=1.0.0",
+    "pytz>=2024.1",
+    "numpy>=1.26.0",  # Explicitly require newer numpy for Python 3.13 compatibility
+]
+
+[project.scripts]
+vicareub2 = "vicareub2:main"
