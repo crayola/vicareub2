@@ -9,13 +9,19 @@ from datetime import datetime, timedelta
 import dotenv
 import pandas as pd
 import seaborn as sns
-from flask import Flask, jsonify, send_file
+from flask import Flask, jsonify, send_file, render_template_string, url_for
 from PyViCare.PyViCare import PyViCare
 from zoneinfo import ZoneInfo
+import matplotlib
+matplotlib.use('Agg')  # Set the backend to non-interactive 'Agg'
+from matplotlib import pyplot as plt
 
 tz = ZoneInfo("Europe/Berlin")
 
 dotenv.load_dotenv()
+
+# Check if we're running in local mode
+LOCAL_MODE = os.getenv("LOCAL_MODE", "false").lower() == "true"
 
 logging.basicConfig(
     format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
@@ -25,7 +31,7 @@ logger = logging.getLogger("ViCareUB2")
 # Global flag to control the background thread
 running = True
 
-app = Flask(__name__)
+app = Flask(__name__, static_url_path='', static_folder='static')
 
 
 def get_device():
@@ -110,8 +116,9 @@ def get_data_for_plotting():
 
 
 def make_plot(melted):
-    from matplotlib import pyplot as plt
-
+    # Set the style to dark
+    plt.style.use('dark_background')
+    
     temps = [
         "temp_boiler",
         "temp_hotwater",
@@ -120,6 +127,13 @@ def make_plot(melted):
         "temp_solstorage",
     ]
     fig, ax = plt.subplots(2, 1, figsize=(12, 16))
+    
+    # Set figure background color
+    fig.patch.set_facecolor('#1a1a1a')
+    ax[0].set_facecolor('#2d2d2d')
+    ax[1].set_facecolor('#2d2d2d')
+    
+    # First plot
     _ = sns.lineplot(
         data=melted[
             melted.variable.isin(
@@ -131,7 +145,15 @@ def make_plot(melted):
         hue="variable",
         ax=ax[0],
     )
-    ax[0].xaxis.set_tick_params(rotation=30)
+    ax[0].xaxis.set_tick_params(rotation=30, colors='white')
+    ax[0].yaxis.set_tick_params(colors='white')
+    ax[0].spines['bottom'].set_color('white')
+    ax[0].spines['top'].set_color('white')
+    ax[0].spines['left'].set_color('white')
+    ax[0].spines['right'].set_color('white')
+    ax[0].grid(True, color='gray', alpha=0.2)
+    
+    # Second plot
     _ = sns.lineplot(
         data=melted[melted.variable.isin(temps)],
         x="time",
@@ -147,31 +169,47 @@ def make_plot(melted):
         color="violet",
         ax=ax2,
     )
-    ax[1].xaxis.set_tick_params(rotation=30)
+    
+    # Style second plot and its twin
+    ax[1].xaxis.set_tick_params(rotation=30, colors='white')
+    ax[1].yaxis.set_tick_params(colors='white')
+    ax2.yaxis.set_tick_params(colors='white')
+    ax[1].spines['bottom'].set_color('white')
+    ax[1].spines['top'].set_color('white')
+    ax[1].spines['left'].set_color('white')
+    ax[1].spines['right'].set_color('white')
+    ax2.spines['bottom'].set_color('white')
+    ax2.spines['top'].set_color('white')
+    ax2.spines['left'].set_color('white')
+    ax2.spines['right'].set_color('white')
+    ax[1].grid(True, color='gray', alpha=0.2)
+    
     now = datetime.now()
     x1 = now.replace(hour=21, minute=30, second=0, microsecond=0) + timedelta(days=-2)
     x2 = x1 + timedelta(hours=8)
     while x1 < now:
-        ax[0].axvspan(x1, x2, 0, 10, color="grey", alpha=0.2)
-        ax[1].axvspan(x1, x2, 0, 10, color="grey", alpha=0.2)
+        ax[0].axvspan(x1, x2, 0, 10, color='#404040', alpha=0.3)
+        ax[1].axvspan(x1, x2, 0, 10, color='#404040', alpha=0.3)
         x1 = x1 + timedelta(hours=24)
         x2 = x1 + timedelta(hours=8)
         if x2 > now:
             x2 = now
-    fig.suptitle(
-        f"Last generated {datetime.now(tz).replace(microsecond=0)}; last data point {melted.iloc[-1,0]}"
-    )
-    plt.savefig("./fig.png")
+    
+    # Adjust layout and save with more vertical spacing
+    plt.tight_layout(h_pad=3.0)  # Increase vertical space between subplots
+    plt.savefig("./fig.png", facecolor='#1a1a1a', edgecolor='none', bbox_inches='tight', pad_inches=0.5)  # Add padding around the entire plot
+    return melted.iloc[-1,0]  # Return the last data point timestamp
 
 
 def background_task():
-    """Background task that collects data and updates the plot every 5 minutes"""
+    """Background task that collects data every 5 minutes"""
     global running
     while running:
         try:
-            logger.info("Starting background data collection and plotting")
-            main(plot=True, collect=True)
-            logger.info("Completed background data collection and plotting")
+            logger.info("Starting background data collection")
+            if not LOCAL_MODE:
+                main(plot=False, collect=True)
+            logger.info("Completed background data collection")
         except Exception as e:
             logger.error(f"Error in background task: {e}")
 
@@ -185,29 +223,44 @@ def background_task():
 @app.route("/")
 def index():
     """Serve the main page with the plot"""
-    return """
+    template = """
     <html>
         <head>
             <title>ViCare Monitoring</title>
             <meta http-equiv="refresh" content="300">
-            <style>
-                body {{ font-family: Arial, sans-serif; margin: 20px; }}
-                img {{ max-width: 50%; height: auto; }}
-            </style>
+            <link rel="stylesheet" href="/css/style.css">
         </head>
         <body>
-            <h1>ViCare Monitoring</h1>
-            <p>Last updated: {}</p>
-            <img src="/plot" alt="ViCare Monitoring Plot">
+            <div class="container">
+                <div class="header-container">
+                    <h1>ViCare Monitoring</h1>
+                    <div class="timestamps">
+                        <div class="timestamp">Page updated: {{ timestamp }}</div>
+                        <div class="timestamp">Last data point: {{ last_data_point }}</div>
+                    </div>
+                </div>
+                <div class="plot-container">
+                    <img src="/plot" alt="ViCare Monitoring Plot">
+                </div>
+            </div>
         </body>
     </html>
-    """.format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
+    """
+    return render_template_string(
+        template,
+        timestamp=datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S"),
+        last_data_point=get_data_for_plotting().iloc[-1,0].strftime("%Y-%m-%d %H:%M:%S")
+    )
 
 
 @app.route("/plot")
 def serve_plot():
     """Serve the plot image"""
     try:
+        # Generate plot on-demand in the main thread
+        logger.info("Generating plot")
+        melted = get_data_for_plotting()
+        make_plot(melted)
         return send_file("fig.png", mimetype="image/png")
     except Exception as e:
         logger.error(f"Error serving plot: {e}")
@@ -229,7 +282,7 @@ def cleanup():
 
 def main(plot=False, collect=True):
     logger.info("starting")
-    if collect:
+    if collect and not LOCAL_MODE:
         logger.info("getting data")
         t, _ = get_device()
         write_data(t)
@@ -241,10 +294,15 @@ def main(plot=False, collect=True):
 
 
 if __name__ == "__main__":
+    if LOCAL_MODE:
+        logger.info("Running in local mode - web server and plotting only")
+    else:
+        logger.info("Running in full mode with ViCare device connection")
+
     # Register cleanup function
     atexit.register(cleanup)
 
-    # Start background thread
+    # Start background thread for data collection only
     background_thread = threading.Thread(target=background_task)
     background_thread.daemon = True
     background_thread.start()
