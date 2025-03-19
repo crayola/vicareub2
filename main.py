@@ -15,8 +15,9 @@ from zoneinfo import ZoneInfo
 import matplotlib
 matplotlib.use('Agg')  # Set the backend to non-interactive 'Agg'
 from matplotlib import pyplot as plt
+import pytz
 
-tz = ZoneInfo("Europe/Berlin")
+tz = pytz.timezone('Europe/Amsterdam')
 
 dotenv.load_dotenv()
 
@@ -119,21 +120,11 @@ def make_plot(melted):
     # Set the style to dark
     plt.style.use('dark_background')
     
-    temps = [
-        "temp_boiler",
-        "temp_hotwater",
-        "temp_hotwater_target",
-        "temp_solcollector",
-        "temp_solstorage",
-    ]
-    fig, ax = plt.subplots(2, 1, figsize=(12, 16))
+    # First plot - System metrics
+    fig1, ax1 = plt.subplots(figsize=(12, 8))
+    fig1.patch.set_facecolor('#1a1a1a')
+    ax1.set_facecolor('#2d2d2d')
     
-    # Set figure background color
-    fig.patch.set_facecolor('#1a1a1a')
-    ax[0].set_facecolor('#2d2d2d')
-    ax[1].set_facecolor('#2d2d2d')
-    
-    # First plot
     _ = sns.lineplot(
         data=melted[
             melted.variable.isin(
@@ -143,73 +134,110 @@ def make_plot(melted):
         x="time",
         y="value",
         hue="variable",
-        ax=ax[0],
+        ax=ax1,
     )
-    ax[0].xaxis.set_tick_params(rotation=30, colors='white')
-    ax[0].yaxis.set_tick_params(colors='white')
-    ax[0].spines['bottom'].set_color('white')
-    ax[0].spines['top'].set_color('white')
-    ax[0].spines['left'].set_color('white')
-    ax[0].spines['right'].set_color('white')
-    ax[0].grid(True, color='gray', alpha=0.2)
+    ax1.xaxis.set_tick_params(rotation=30, colors='white')
+    ax1.yaxis.set_tick_params(colors='white')
+    ax1.spines['bottom'].set_color('white')
+    ax1.spines['top'].set_color('white')
+    ax1.spines['left'].set_color('white')
+    ax1.spines['right'].set_color('white')
+    ax1.grid(True, color='gray', alpha=0.2)
     
-    # Second plot
-    _ = sns.lineplot(
-        data=melted[melted.variable.isin(temps)],
-        x="time",
-        y="value",
-        hue="variable",
-        ax=ax[1],
-    )
-    ax2 = ax[1].twinx()
-    _ = sns.lineplot(
-        data=melted[melted.variable == "temp_out"],
-        x="time",
-        y="value",
-        color="violet",
-        ax=ax2,
-    )
-    
-    # Style second plot and its twin
-    ax[1].xaxis.set_tick_params(rotation=30, colors='white')
-    ax[1].yaxis.set_tick_params(colors='white')
-    ax2.yaxis.set_tick_params(colors='white')
-    ax[1].spines['bottom'].set_color('white')
-    ax[1].spines['top'].set_color('white')
-    ax[1].spines['left'].set_color('white')
-    ax[1].spines['right'].set_color('white')
-    ax2.spines['bottom'].set_color('white')
-    ax2.spines['top'].set_color('white')
-    ax2.spines['left'].set_color('white')
-    ax2.spines['right'].set_color('white')
-    ax[1].grid(True, color='gray', alpha=0.2)
-    
+    # Add night time spans to first plot
     now = datetime.now()
     x1 = now.replace(hour=21, minute=30, second=0, microsecond=0) + timedelta(days=-2)
     x2 = x1 + timedelta(hours=8)
     while x1 < now:
-        ax[0].axvspan(x1, x2, 0, 10, color='#404040', alpha=0.3)
-        ax[1].axvspan(x1, x2, 0, 10, color='#404040', alpha=0.3)
+        ax1.axvspan(x1, x2, 0, 10, color='#404040', alpha=0.3)
         x1 = x1 + timedelta(hours=24)
         x2 = x1 + timedelta(hours=8)
         if x2 > now:
             x2 = now
     
-    # Adjust layout and save with more vertical spacing
-    plt.tight_layout(h_pad=3.0)  # Increase vertical space between subplots
-    plt.savefig("./fig.png", facecolor='#1a1a1a', edgecolor='none', bbox_inches='tight', pad_inches=0.5)  # Add padding around the entire plot
+    plt.tight_layout()
+    plt.savefig("./static/system_metrics.png", facecolor='#1a1a1a', edgecolor='none', bbox_inches='tight', pad_inches=0.5)
+    plt.close(fig1)
+    
+    # Second plot - Temperature metrics
+    fig2, ax2 = plt.subplots(figsize=(12, 8))
+    fig2.patch.set_facecolor('#1a1a1a')
+    ax2.set_facecolor('#2d2d2d')
+    
+    temps = [
+        "temp_boiler",
+        "temp_hotwater",
+        "temp_hotwater_target",
+        "temp_solcollector",
+        "temp_solstorage",
+    ]
+    
+    _ = sns.lineplot(
+        data=melted[melted.variable.isin(temps)],
+        x="time",
+        y="value",
+        hue="variable",
+        ax=ax2,
+    )
+    ax2_twin = ax2.twinx()
+    _ = sns.lineplot(
+        data=melted[melted.variable == "temp_out"],
+        x="time",
+        y="value",
+        color="violet",
+        ax=ax2_twin,
+    )
+    
+    # Style second plot and its twin
+    ax2.xaxis.set_tick_params(rotation=30, colors='white')
+    ax2.yaxis.set_tick_params(colors='white')
+    ax2_twin.yaxis.set_tick_params(colors='white')
+    ax2.spines['bottom'].set_color('white')
+    ax2.spines['top'].set_color('white')
+    ax2.spines['left'].set_color('white')
+    ax2.spines['right'].set_color('white')
+    ax2_twin.spines['bottom'].set_color('white')
+    ax2_twin.spines['top'].set_color('white')
+    ax2_twin.spines['left'].set_color('white')
+    ax2_twin.spines['right'].set_color('white')
+    ax2.grid(True, color='gray', alpha=0.2)
+    
+    # Add night time spans to second plot
+    x1 = now.replace(hour=21, minute=30, second=0, microsecond=0) + timedelta(days=-2)
+    x2 = x1 + timedelta(hours=8)
+    while x1 < now:
+        ax2.axvspan(x1, x2, 0, 10, color='#404040', alpha=0.3)
+        x1 = x1 + timedelta(hours=24)
+        x2 = x1 + timedelta(hours=8)
+        if x2 > now:
+            x2 = now
+    
+    plt.tight_layout()
+    plt.savefig("./static/temperature_metrics.png", facecolor='#1a1a1a', edgecolor='none', bbox_inches='tight', pad_inches=0.5)
+    plt.close(fig2)
+    
     return melted.iloc[-1,0]  # Return the last data point timestamp
 
 
 def background_task():
-    """Background task that collects data every 5 minutes"""
+    """Background task that collects data and generates plots every 5 minutes"""
     global running
     while running:
         try:
             logger.info("Starting background data collection")
             if not LOCAL_MODE:
                 main(plot=False, collect=True)
-            logger.info("Completed background data collection")
+            
+            # Generate plots regardless of mode
+            logger.info("Generating plots")
+            try:
+                melted = get_data_for_plotting()
+                make_plot(melted)
+                logger.info("Successfully generated plots")
+            except Exception as e:
+                logger.error(f"Error generating plots: {e}")
+                
+            logger.info("Completed background task")
         except Exception as e:
             logger.error(f"Error in background task: {e}")
 
@@ -223,12 +251,26 @@ def background_task():
 @app.route("/")
 def index():
     """Serve the main page with the plot"""
+    try:
+        # Get the last data point timestamp from the CSV directly
+        df = pd.read_csv("burner_data.csv", names=[
+            "timestamp", "active", "modulation", "hours", "starts",
+            "temp_out", "temp_boiler", "temp_hotwater", "temp_hotwater_target",
+            "temp_heating", "temp_solcollector", "temp_solstorage",
+            "solar_production", "solar_pump"
+        ])
+        last_data_point = (pd.to_datetime(df.iloc[-1]["timestamp"], unit="s") + timedelta(hours=1)).strftime("%Y-%m-%d %H:%M:%S")
+    except Exception as e:
+        logger.error(f"Error reading last data point: {e}")
+        last_data_point = "Error reading data"
+
     template = """
     <html>
         <head>
             <title>ViCare Monitoring</title>
             <meta http-equiv="refresh" content="300">
             <link rel="stylesheet" href="/css/style.css">
+            <meta name="viewport" content="width=device-width, initial-scale=1.0">
         </head>
         <body>
             <div class="container">
@@ -239,8 +281,15 @@ def index():
                         <div class="timestamp">Last data point: {{ last_data_point }}</div>
                     </div>
                 </div>
-                <div class="plot-container">
-                    <img src="/plot" alt="ViCare Monitoring Plot">
+                <div class="plots-container">
+                    <div class="plot-container">
+                        <div class="plot-title">System Metrics</div>
+                        <img src="/system_metrics.png" alt="System Metrics Plot">
+                    </div>
+                    <div class="plot-container">
+                        <div class="plot-title">Temperature Metrics</div>
+                        <img src="/temperature_metrics.png" alt="Temperature Metrics Plot">
+                    </div>
                 </div>
             </div>
         </body>
@@ -249,22 +298,8 @@ def index():
     return render_template_string(
         template,
         timestamp=datetime.now(tz).strftime("%Y-%m-%d %H:%M:%S"),
-        last_data_point=get_data_for_plotting().iloc[-1,0].strftime("%Y-%m-%d %H:%M:%S")
+        last_data_point=last_data_point
     )
-
-
-@app.route("/plot")
-def serve_plot():
-    """Serve the plot image"""
-    try:
-        # Generate plot on-demand in the main thread
-        logger.info("Generating plot")
-        melted = get_data_for_plotting()
-        make_plot(melted)
-        return send_file("fig.png", mimetype="image/png")
-    except Exception as e:
-        logger.error(f"Error serving plot: {e}")
-        return "Error serving plot", 500
 
 
 @app.route("/health")
