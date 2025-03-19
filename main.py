@@ -1,21 +1,19 @@
 #! python
+import atexit
 import logging
 import os
-import sys
-import time
 import threading
-from zoneinfo import ZoneInfo
+import time
 from datetime import datetime, timedelta
 
 import dotenv
 import pandas as pd
 import seaborn as sns
+from flask import Flask, jsonify, send_file
 from PyViCare.PyViCare import PyViCare
-from tqdm import tqdm
-from flask import Flask, send_file, jsonify
-import atexit
+from zoneinfo import ZoneInfo
 
-tz = ZoneInfo('Europe/Berlin')
+tz = ZoneInfo("Europe/Berlin")
 
 dotenv.load_dotenv()
 
@@ -28,6 +26,7 @@ logger = logging.getLogger("ViCareUB2")
 running = True
 
 app = Flask(__name__)
+
 
 def get_device():
     client_id = os.getenv("CLIENT_ID")
@@ -45,7 +44,7 @@ def get_device():
     devices = vicare.devices
     device = devices[1]
     t = device.asAutoDetectDevice()
-    return t
+    return t, vicare
 
 
 def write_data(t):
@@ -124,7 +123,7 @@ def make_plot(melted):
     _ = sns.lineplot(
         data=melted[
             melted.variable.isin(
-                ["hours", "active", "modulation", "starts", "solar_production","solar_pump"]
+                ["hours", "active", "modulation", "starts", "solar_production", "solar_pump"]
             )
         ],
         x="time",
@@ -175,14 +174,15 @@ def background_task():
             logger.info("Completed background data collection and plotting")
         except Exception as e:
             logger.error(f"Error in background task: {e}")
-        
+
         # Wait for 5 minutes
         for _ in range(300):
             if not running:
                 break
             time.sleep(1)
 
-@app.route('/')
+
+@app.route("/")
 def index():
     """Serve the main page with the plot"""
     return """
@@ -203,19 +203,22 @@ def index():
     </html>
     """.format(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
 
-@app.route('/plot')
+
+@app.route("/plot")
 def serve_plot():
     """Serve the plot image"""
     try:
-        return send_file('fig.png', mimetype='image/png')
+        return send_file("fig.png", mimetype="image/png")
     except Exception as e:
         logger.error(f"Error serving plot: {e}")
         return "Error serving plot", 500
 
-@app.route('/health')
+
+@app.route("/health")
 def health_check():
     """Health check endpoint"""
     return jsonify({"status": "healthy"})
+
 
 def cleanup():
     """Cleanup function to stop the background thread"""
@@ -223,11 +226,12 @@ def cleanup():
     running = False
     logger.info("Stopping background task")
 
+
 def main(plot=False, collect=True):
     logger.info("starting")
     if collect:
         logger.info("getting data")
-        t = get_device()
+        t, _ = get_device()
         write_data(t)
     if plot:
         logger.info("plotting")
@@ -235,14 +239,15 @@ def main(plot=False, collect=True):
         logger.info("saving")
         make_plot(melted)
 
+
 if __name__ == "__main__":
     # Register cleanup function
     atexit.register(cleanup)
-    
+
     # Start background thread
     background_thread = threading.Thread(target=background_task)
     background_thread.daemon = True
     background_thread.start()
-    
+
     # Run Flask app
-    app.run(host='0.0.0.0', port=8000, debug=False)
+    app.run(host="0.0.0.0", port=8000, debug=False)
