@@ -1,10 +1,10 @@
 from pydantic_settings import BaseSettings
-from typing import Optional
+
 
 class Settings(BaseSettings):
-    client_id: str
-    email: str
-    password: str
+    client_id: str = ""
+    email: str = ""
+    password: str = ""
     local_mode: bool = False
     timezone: str = "Europe/Amsterdam"
     data_file: str = "burner_data.csv"
@@ -17,4 +17,5 @@ class Settings(BaseSettings):
         env_file = ".env"
         env_file_encoding = "utf-8"
 
-settings = Settings() 
+
+settings = Settings()
