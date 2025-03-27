@@ -12,6 +12,7 @@ logger = logging.getLogger("ViCareUB2")
 class DataCollector:
     def __init__(self):
         self.data_file = settings.data_file
+        self.data_file_json = settings.data_file_json
         self.dtypes = {
             "timestamp": "int64",
             "active": "int",
@@ -29,7 +30,7 @@ class DataCollector:
             "solar_pump": "int",
         }
 
-    def write_data(self, data: Dict[str, Any]) -> None:
+    def write_csv(self, data: Dict[str, Any]) -> None:
         """Write data to CSV file"""
         try:
             # Convert boolean values to integers for CSV storage
@@ -53,6 +54,8 @@ class DataCollector:
                     "temp_solstorage",
                     "solar_production",
                     "solar_pump",
+                    "circulation_pump",
+                    "dhw_pump",
                 ]
             )
 
@@ -62,6 +65,16 @@ class DataCollector:
             logger.debug(
                 f"Successfully wrote data point at {datetime.fromtimestamp(data['timestamp'])}"
             )
+
+        except Exception as e:
+            logger.error(f"Failed to write data: {e}")
+            raise
+
+    def write_json(self, data: Dict[str, Any]) -> None:
+        """Write data to CSV file"""
+        try:
+            with open(self.data_file_json, "a") as f:
+                f.write(f"{data}\n")
 
         except Exception as e:
             logger.error(f"Failed to write data: {e}")
@@ -85,6 +98,8 @@ class DataCollector:
                 "temp_solstorage",
                 "solar_production",
                 "solar_pump",
+                "circulation_pump",
+                "dhw_pump",
             ]
 
             # Read last 1000 rows with proper data types
@@ -108,11 +123,9 @@ class DataCollector:
 
             # Clean data
             bdf = bdf[~bdf.temp_heating.isna()]
+            if not isinstance(bdf, pd.DataFrame):
+                raise ValueError("Invalid DataFrame")
             bdf = bdf.drop_duplicates(colnames[1:], keep="first")
-
-            # Convert booleans to strings for plotting
-            bdf["active"] = bdf["active"].map({True: "Active", False: "Inactive"})
-            bdf["solar_pump"] = bdf["solar_pump"].map({True: "On", False: "Off"})
 
             # Melt for plotting
             return bdf.melt(id_vars="time")

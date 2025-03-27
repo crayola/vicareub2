@@ -8,6 +8,7 @@ class Settings(BaseSettings):
     local_mode: bool = False
     timezone: str = "Europe/Amsterdam"
     data_file: str = "burner_data.csv"
+    data_file_json: str = "burner_data.jsonl"
     token_file: str = "token.save"
     server_host: str = "0.0.0.0"
     server_port: int = 8000

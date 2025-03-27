@@ -8,10 +8,8 @@ version = "0.1.0"
 description = "A monitoring tool for ViCare heating systems"
 readme = "README.md"
 requires-python = ">=3.12"
-license = {text = "MIT"}
-authors = [
-    {name = "Tim"}
-]
+license = { text = "MIT" }
+authors = [{ name = "Tim" }]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: End Users/Desktop",
@@ -26,8 +24,19 @@ dependencies = [
     "pydantic-settings>=2.0.0",
     "python-dotenv>=1.0.0",
     "pytz>=2024.1",
-    "numpy>=1.26.0",  # Explicitly require newer numpy for Python 3.13 compatibility
+    "numpy>=1.26.0",            # Explicitly require newer numpy for Python 3.13 compatibility
 ]
+
+[dependency-groups]
+dev = [
+    "ruff",
+]
+
 
 [project.scripts]
 vicareub2 = "vicareub2:main"
+
+
+[tool.ruff]
+line-length = 100
+lint.extend-select = ["I"]

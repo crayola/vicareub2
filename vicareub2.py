@@ -8,17 +8,17 @@ import logging
 import threading
 import time
 
-from pyvicareub2 import settings, ViCareClient, DataCollector, PlotGenerator, app
+from pyvicareub2 import DataCollector, PlotGenerator, ViCareClient, app, settings
 
 # Configure logging
 logging.basicConfig(
-    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s",
-    level=logging.INFO
+    format="%(asctime)s - %(name)s - %(levelname)s - %(message)s", level=logging.INFO
 )
 logger = logging.getLogger("ViCareUB2")
 
 # Global flag to control the background thread
 running = True
+
 
 def background_task():
     """Background task that collects data and generates plots every 5 minutes"""
@@ -26,15 +26,17 @@ def background_task():
     vicare_client = ViCareClient()
     data_collector = DataCollector()
     plot_generator = PlotGenerator()
-    
+
     while running:
         try:
             logger.info("Starting background data collection")
             if not settings.local_mode:
                 # Collect data from ViCare
                 data = vicare_client.get_device_data()
-                data_collector.write_data(data)
-            
+                data_collector.write_csv(data)
+                # raw_data = vicare_client.get_device_data_json()
+                # data_collector.write_json(raw_data)
+
             # Generate plots
             logger.info("Generating plots")
             try:
@@ -43,7 +45,7 @@ def background_task():
                 logger.info("Successfully generated plots")
             except Exception as e:
                 logger.error(f"Error generating plots: {e}")
-                
+
             logger.info("Completed background task")
         except Exception as e:
             logger.error(f"Error in background task: {e}")
@@ -54,11 +56,13 @@ def background_task():
                 break
             time.sleep(1)
 
+
 def cleanup():
     """Cleanup function to stop the background thread"""
     global running
     running = False
     logger.info("Stopping background task")
+
 
 def main():
     if settings.local_mode:
@@ -75,11 +79,8 @@ def main():
     background_thread.start()
 
     # Run Flask app
-    app.run(
-        host=settings.server_host,
-        port=settings.server_port,
-        debug=False
-    )
+    app.run(host=settings.server_host, port=settings.server_port, debug=False)
+
 
 if __name__ == "__main__":
-    main() 
+    main()

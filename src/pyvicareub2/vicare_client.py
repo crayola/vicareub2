@@ -19,7 +19,10 @@ class ViCareClient:
         try:
             self.vicare = PyViCare()
             self.vicare.initWithCredentials(
-                settings.email, settings.password, settings.client_id, settings.token_file
+                settings.email,
+                settings.password,
+                settings.client_id,
+                settings.token_file,
             )
             logger.info("Successfully authenticated with ViCare")
 
@@ -27,7 +30,7 @@ class ViCareClient:
             if not devices:
                 raise ValueError("No ViCare devices found")
 
-            self.device = devices[1].asAutoDetectDevice()
+            self.device = devices[1].asGazBoiler()
             logger.info("Successfully connected to ViCare device")
 
         except Exception as e:
@@ -38,6 +41,8 @@ class ViCareClient:
         """Collect data from the ViCare device"""
         if not self.device:
             self.connect()
+        if not self.device:
+            raise ValueError("No ViCare device found")
 
         try:
             burner = self.device.burners[0]
@@ -45,7 +50,7 @@ class ViCareClient:
 
             return {
                 "timestamp": int(datetime.now().timestamp()),
-                "active": burner.getActive(),
+                "active": 1 if burner.getActive() else 0,
                 "modulation": burner.getModulation(),
                 "hours": burner.getHours(),
                 "starts": burner.getStarts(),
@@ -56,9 +61,26 @@ class ViCareClient:
                 "temp_solcollector": self.device.getSolarCollectorTemperature(),
                 "temp_solstorage": self.device.getSolarStorageTemperature(),
                 "solar_production": self.device.getSolarPowerProductionToday(),
-                "solar_pump": self.device.getSolarPumpActive(),
+                "solar_pump": 1 if self.device.getSolarPumpActive() else 0,
                 "temp_heating": circuit.getSupplyTemperature(),
+                "circulation_pump": 1
+                if self.device.getDomesticHotWaterCirculationPumpActive()
+                else 0,
+                "dhw_pump": 1 if self.device.getDomesticHotWaterPumpActive() else 0,
             }
         except Exception as e:
             logger.error(f"Failed to collect device data: {e}")
             raise
+
+    def get_device_data_json(self) -> dict[str, Any]:
+        """Collect data from the ViCare device"""
+        if not self.vicare or not self.vicare.devices[1]:
+            return {}
+
+        try:
+            raw_dict: dict[str, Any] = self.vicare.devices[1].get_raw_json()
+            return raw_dict
+
+        except Exception as e:
+            logger.error(f"Failed to collect device data: {e}")
+            return {}

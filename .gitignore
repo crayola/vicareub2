@@ -35,10 +35,10 @@ ENV/
 .env
 token.save
 burner_data.csv
+burner_data.jsonl
 
 # Generated plots and data
 static/*.png
 static/*.jpg
 static/*.jpeg
 static/*.gif
-
