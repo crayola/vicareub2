@@ -7,4 +7,4 @@ ADD . /app
 WORKDIR /app
 
 RUN uv sync --frozen
-CMD ["uv", "run", "vicareub2.py"]
+CMD ["uv", "run", "vicareub2.py", "--streamlit"]

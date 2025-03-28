@@ -5,9 +5,12 @@ A monitoring tool for ViCare heating systems that collects data and displays it 
 ## Features
 
 - Real-time data collection from ViCare devices
-- Beautiful web interface with dark mode
+- Two visualization options:
+  - Traditional web interface with matplotlib charts
+  - Modern interactive Streamlit interface with dynamic visualizations
 - System metrics visualization
 - Temperature metrics visualization
+- Device/pump status visualization (boolean variables)
 - Automatic data collection every 5 minutes
 - Local mode for testing without device connection
 
@@ -39,22 +42,40 @@ CLIENT_ID=your_client_id
 EMAIL=your_email
 PASSWORD=your_password
 LOCAL_MODE=false
+USE_STREAMLIT=false
 TIMEZONE=Europe/Amsterdam
 ```
 
 ## Usage
 
-Run the application:
+Run the application with the traditional Flask + matplotlib interface:
 ```bash
 vicareub2
 ```
 
-Or:
+Or run with the modern Streamlit interface:
 ```bash
-python vicareub2.py
+vicareub2 --streamlit
 ```
 
-The web interface will be available at `http://localhost:8000`.
+You can also run in local mode (without device connection):
+```bash
+vicareub2 --local
+```
+
+Combine options:
+```bash
+vicareub2 --streamlit --local
+```
+
+Or run directly:
+```bash
+python vicareub2.py [options]
+```
+
+The web interfaces will be available at:
+- Traditional interface: `http://localhost:8000`
+- Streamlit interface: `http://localhost:8501`
 
 ## Development
 
