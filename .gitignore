@@ -36,6 +36,7 @@ ENV/
 token.save
 burner_data.csv
 burner_data.jsonl
+heating_data.db
 
 # Generated plots and data
 static/*.png

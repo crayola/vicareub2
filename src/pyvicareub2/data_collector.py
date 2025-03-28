@@ -5,6 +5,7 @@ from typing import Any, Dict
 import pandas as pd
 
 from .config import settings
+from .database import DatabaseService
 
 logger = logging.getLogger("ViCareUB2")
 
@@ -13,6 +14,7 @@ class DataCollector:
     def __init__(self):
         self.data_file = settings.data_file
         self.data_file_json = settings.data_file_json
+        self.database = DatabaseService()
         self.dtypes = {
             "timestamp": "int64",
             "active": "int",
@@ -31,7 +33,7 @@ class DataCollector:
         }
 
     def write_csv(self, data: Dict[str, Any]) -> None:
-        """Write data to CSV file"""
+        """Write data to CSV file and SQLite database"""
         try:
             # Convert boolean values to integers for CSV storage
             data_to_write = data.copy()
@@ -59,8 +61,12 @@ class DataCollector:
                 ]
             )
 
+            # For backward compatibility, still write to CSV
             with open(self.data_file, "a") as f:
                 f.write(f"{csv_line}\n")
+
+            # Store data in SQLite database
+            self.database.save_heating_data(data_to_write)
 
             logger.debug(
                 f"Successfully wrote data point at {datetime.fromtimestamp(data['timestamp'])}"
@@ -71,18 +77,28 @@ class DataCollector:
             raise
 
     def write_json(self, data: Dict[str, Any]) -> None:
-        """Write data to CSV file"""
+        """Write data to JSON file and SQLite database"""
         try:
+            # For backward compatibility, still write to JSON file
             with open(self.data_file_json, "a") as f:
                 f.write(f"{data}\n")
+            
+            # Store raw data in SQLite database
+            self.database.save_raw_device_data(data)
 
         except Exception as e:
             logger.error(f"Failed to write data: {e}")
             raise
 
     def get_data_for_plotting(self) -> pd.DataFrame:
-        """Get and prepare data for plotting"""
+        """Get and prepare data for plotting from SQLite database"""
         try:
+            # Get data from database
+            return self.database.get_data_for_plotting()
+        except Exception as e:
+            logger.error(f"Failed to prepare data for plotting from database, falling back to CSV: {e}")
+            
+            # Fall back to CSV if database fails
             colnames = [
                 "timestamp",
                 "active",
@@ -129,7 +145,3 @@ class DataCollector:
 
             # Melt for plotting
             return bdf.melt(id_vars="time")
-
-        except Exception as e:
-            logger.error(f"Failed to prepare data for plotting: {e}")
-            raise

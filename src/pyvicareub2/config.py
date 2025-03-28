@@ -10,6 +10,7 @@ class Settings(BaseSettings):
     data_file: str = "burner_data.csv"
     data_file_json: str = "burner_data.jsonl"
     token_file: str = "token.save"
+    database_path: str = "heating_data.db"
     server_host: str = "0.0.0.0"
     server_port: int = 8000
     background_task_interval: int = 300  # 5 minutes in seconds

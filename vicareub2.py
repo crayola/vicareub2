@@ -5,10 +5,12 @@ PyViCareUB2 - A monitoring tool for ViCare heating systems
 
 import atexit
 import logging
+import os
 import threading
 import time
 
 from pyvicareub2 import DataCollector, PlotGenerator, ViCareClient, app, settings
+from pyvicareub2.migrate_csv_to_sqlite import migrate_csv_to_sqlite
 
 # Configure logging
 logging.basicConfig(
@@ -64,11 +66,24 @@ def cleanup():
     logger.info("Stopping background task")
 
 
+def migrate_data_if_needed():
+    """Migrate data from CSV to SQLite if needed"""
+    # Check if database exists
+    if not os.path.exists(settings.database_path):
+        logger.info("Database does not exist, migrating data from CSV")
+        migrate_csv_to_sqlite()
+    else:
+        logger.info("Database already exists, skipping migration")
+
+
 def main():
     if settings.local_mode:
         logger.info("Running in local mode - web server and plotting only")
     else:
         logger.info("Running in full mode with ViCare device connection")
+
+    # Migrate data from CSV to SQLite if needed
+    migrate_data_if_needed()
 
     # Register cleanup function
     atexit.register(cleanup)
