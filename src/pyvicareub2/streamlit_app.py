@@ -140,7 +140,46 @@ def plot_temperatures(df):
     system_max = system_data['Value'].max()
     padding = (system_max - system_min) * 0.1
     
-    # Create the main chart
+    # Create day/night background data
+    time_range = [pd.to_datetime(df['time'].min()), pd.to_datetime(df['time'].max())]
+    night_bands = []
+    
+    # Start with the first day at midnight
+    current_date = pd.to_datetime(time_range[0]).normalize()
+    end_date = pd.to_datetime(time_range[1])
+    
+    # Build night bands data (21:30-05:30)
+    while current_date <= end_date:
+        # Evening (21:30-midnight)
+        evening_start = current_date.replace(hour=21, minute=30, second=0)
+        if evening_start < time_range[0]:
+            evening_start = time_range[0]
+        
+        evening_end = (current_date + pd.Timedelta(days=1)).normalize()  # midnight
+        if evening_end > time_range[1]:
+            evening_end = time_range[1]
+            
+        if evening_start < evening_end:
+            night_bands.append({'start': evening_start, 'end': evening_end})
+        
+        # Morning (midnight-05:30)
+        morning_start = current_date.normalize()  # midnight
+        if morning_start < time_range[0]:
+            morning_start = time_range[0]
+            
+        morning_end = current_date.replace(hour=5, minute=30, second=0)
+        if morning_end > time_range[1]:
+            morning_end = time_range[1]
+            
+        if morning_start < morning_end and morning_end > time_range[0]:
+            night_bands.append({'start': morning_start, 'end': morning_end})
+        
+        current_date += pd.Timedelta(days=1)
+    
+    # Create night bands dataframe
+    night_df = pd.DataFrame(night_bands)
+    
+    # Create the main temperature chart
     base_chart = alt.Chart(system_data).mark_line().encode(
         x=alt.X('time:T', 
                 title='Time',
@@ -173,6 +212,71 @@ def plot_temperatures(df):
         height=500
     )
     
+    # Night bands chart (only if we have night bands data)
+    night_band_chart = None
+    if not night_df.empty:
+        # Draw night time rectangles with dark blue color and increased opacity
+        night_band_chart = alt.Chart(night_df).mark_rect(
+            color='#141110',  # Dark blue instead of black
+            opacity=0.35      # Increased opacity for better visibility
+        ).encode(
+            x='start:T',
+            x2='end:T',
+            y=alt.value(0),  # Span the entire height
+            y2=alt.value(500)
+        )
+    
+    # Create day time bands for contrast
+    day_bands = []
+    current_date = pd.to_datetime(time_range[0]).normalize()
+    
+    # Build day bands data (05:30-21:30)
+    while current_date <= end_date:
+        day_start = current_date.replace(hour=5, minute=30, second=0)
+        if day_start < time_range[0]:
+            day_start = time_range[0]
+            
+        day_end = current_date.replace(hour=21, minute=30, second=0)
+        if day_end > time_range[1]:
+            day_end = time_range[1]
+            
+        if day_start < day_end:
+            day_bands.append({'start': day_start, 'end': day_end})
+        
+        current_date += pd.Timedelta(days=1)
+    
+    # Create day bands dataframe
+    day_df = pd.DataFrame(day_bands)
+    
+    # Day bands chart
+    day_band_chart = None
+    if not day_df.empty:
+        # Draw day time rectangles with slightly lighter color
+        day_band_chart = alt.Chart(day_df).mark_rect(
+            color='#292b30',  # Slightly lighter than background
+            opacity=0.3       # Subtle opacity
+        ).encode(
+            x='start:T',
+            x2='end:T',
+            y=alt.value(0),
+            y2=alt.value(500)
+        )
+    
+    # Combine base chart with night and day bands if available
+    chart_layers = []
+    
+    # Add bands in correct order (first background layers, then data)
+    if day_band_chart:
+        chart_layers.append(day_band_chart)
+    if night_band_chart:
+        chart_layers.append(night_band_chart)
+    
+    # Add the temperature data on top
+    chart_layers.append(base_chart)
+    
+    # Create the combined chart
+    chart_with_bands = alt.layer(*chart_layers)
+    
     # If we have outside temperature data, add it on a secondary y-axis
     if has_outside_temp:
         outside_data = df[['time', 'temp_out']].dropna().copy()
@@ -200,7 +304,7 @@ def plot_temperatures(df):
             
             # Create a layered chart with dual y-axes
             layered_chart = alt.layer(
-                base_chart,
+                chart_with_bands,  # Use chart with night bands
                 outside_chart
             ).resolve_scale(
                 y='independent'
@@ -209,7 +313,7 @@ def plot_temperatures(df):
             return layered_chart
     
     # If no outside temperature, return just the base chart
-    return base_chart
+    return chart_with_bands
 
 def plot_system_metrics(df):
     """Plot system metrics using Altair"""
