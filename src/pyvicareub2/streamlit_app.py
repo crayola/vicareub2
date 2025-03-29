@@ -41,6 +41,28 @@ def setup_page():
     }
     .stPlot {
         background-color: #2d2d2d;
+        border-radius: 15px;
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
+        padding: 15px;
+        border: 1px solid #3d3d3d;
+        outline: 1px solid #4d4d4d;
+    }
+    /* Apply rounded corners to Vega-Lite chart elements */
+    .vega-embed .marks {
+        border-radius: 10px;
+    }
+    /* Add shadow effect for charts */
+    .vega-embed {
+        filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
+    }
+    /* Add light grey edge to Vega charts */
+    .vega-embed .chart-wrapper {
+        border: 1px solid #4d4d4d;
+        border-radius: 10px;
+        width: 100% !important;
+    }
+    .vega-embed {
+        width: 100% !important;
     }
     .block-container {
         padding-top: 1rem;
@@ -69,6 +91,10 @@ def setup_page():
         margin-bottom: 1.5rem;
         box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
         border: 1px solid #3d3d3d;
+    }
+    /* Section header styling */
+    .stHeading {
+        margin-top: 1.5rem;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -203,12 +229,14 @@ def plot_temperatures(df):
     # Create night bands dataframe
     night_df = pd.DataFrame(night_bands)
     
-    # Create the main temperature chart
-    base_chart = alt.Chart(system_data).mark_line().encode(
+    # Create the main temperature chart with thin lines for most temperatures
+    base_chart = alt.Chart(system_data).mark_line(
+        strokeWidth=0.8  # Thinner lines
+    ).encode(
         x=alt.X('time:T', 
                 title='Time',
                 axis=alt.Axis(labelPadding=10),
-                scale=alt.Scale(padding=30)),  # Add horizontal padding
+                scale=alt.Scale(padding=100)),  # Much more horizontal padding
         y=alt.Y('Value:Q', 
                 title='System Temperature (°C)',
                 scale=alt.Scale(domain=[system_min - padding, system_max + padding], zero=False),
@@ -218,22 +246,42 @@ def plot_temperatures(df):
                       scale=alt.Scale(
                           domain=['temp_hotwater_target', 'temp_hotwater', 'temp_solcollector', 
                                  'temp_boiler', 'temp_heating', 'temp_solstorage'],
-                          range=['#999999', 'blue', 'red', 
-                                '#00BFFF', '#00FF00', '#FFFF00']
+                          range=['rgba(153,153,153,0.8)', 'rgba(0,0,255,0.8)', 'rgba(255,0,0,0.8)', 
+                                'rgba(0,191,255,0.7)', 'rgba(0,255,0,0.7)', 'rgba(255,255,0,0.7)']
                       )),
-        strokeDash=alt.condition(
-            alt.datum.Temperature == 'temp_hotwater_target',
-            alt.value([2, 2]),
-            alt.value([0])
-        ),
-        strokeWidth=alt.condition(
-            alt.FieldOneOfPredicate(field='Temperature', oneOf=['temp_hotwater', 'temp_solcollector']),
-            alt.value(2),  # For hotwater and solcollector
-            alt.value(1)   # For everything else including target
-        ),
         tooltip=['time:T', 'Temperature:N', alt.Tooltip('Value:Q', format='.1f')]
+    ).transform_filter(
+        ~alt.FieldOneOfPredicate(field='Temperature', oneOf=['temp_hotwater', 'temp_solcollector', 'temp_hotwater_target'])
     ).properties(
-        height=500
+        height=480  # Reduced from 500 to decrease bottom padding
+    )
+    
+    # Special chart for hotwater and solcollector with thicker lines
+    special_temp_chart = alt.Chart(system_data).mark_line(
+        strokeWidth=1.5  # Thicker lines
+    ).encode(
+        x=alt.X('time:T', scale=alt.Scale(padding=100)),  # Match the padding
+        y=alt.Y('Value:Q', scale=alt.Scale(domain=[system_min - padding, system_max + padding])),
+        color=alt.Color('Temperature:N', scale=alt.Scale(
+            domain=['temp_hotwater', 'temp_solcollector'],
+            range=['rgba(0,0,255,0.8)', 'rgba(255,0,0,0.8)']
+        )),
+        tooltip=['time:T', 'Temperature:N', alt.Tooltip('Value:Q', format='.1f')]
+    ).transform_filter(
+        alt.FieldOneOfPredicate(field='Temperature', oneOf=['temp_hotwater', 'temp_solcollector'])
+    )
+    
+    # Special chart for target temperature with dotted lines
+    target_temp_chart = alt.Chart(system_data).mark_line(
+        strokeWidth=0.8,
+        strokeDash=[2, 2]
+    ).encode(
+        x=alt.X('time:T', scale=alt.Scale(padding=100)),  # Match the padding
+        y=alt.Y('Value:Q', scale=alt.Scale(domain=[system_min - padding, system_max + padding])),
+        color=alt.value('rgba(153,153,153,0.8)'),
+        tooltip=['time:T', 'Temperature:N', alt.Tooltip('Value:Q', format='.1f')]
+    ).transform_filter(
+        alt.datum.Temperature == 'temp_hotwater_target'
     )
     
     # Night bands chart (only if we have night bands data)
@@ -247,7 +295,7 @@ def plot_temperatures(df):
             x='start:T',
             x2='end:T',
             y=alt.value(0),  # Span the entire height
-            y2=alt.value(500)
+            y2=alt.value(480)  # Match the reduced height
         )
     
     # Create day time bands for contrast
@@ -283,7 +331,7 @@ def plot_temperatures(df):
             x='start:T',
             x2='end:T',
             y=alt.value(0),
-            y2=alt.value(500)
+            y2=alt.value(480)  # Match the reduced height
         )
     
     # Combine base chart with night and day bands if available
@@ -297,6 +345,8 @@ def plot_temperatures(df):
     
     # Add the temperature data on top
     chart_layers.append(base_chart)
+    chart_layers.append(special_temp_chart)
+    chart_layers.append(target_temp_chart)
     
     # Create the combined chart
     chart_with_bands = alt.layer(*chart_layers)
@@ -313,9 +363,9 @@ def plot_temperatures(df):
             outside_padding = (outside_max - outside_min) * 0.1
             
             outside_chart = alt.Chart(outside_data).mark_line(
-                color='violet',
+                color='rgba(238,130,238,0.7)',  # Faded violet
                 strokeDash=[5, 5],
-                strokeWidth=2
+                strokeWidth=1.2  # Slightly thinner
             ).encode(
                 x=alt.X('time:T'),
                 y=alt.Y('Value:Q',
@@ -383,11 +433,13 @@ def plot_system_metrics(df):
     # Create base chart with added horizontal padding
     chart = alt.Chart(
         chart_data
-    ).mark_line().encode(
+    ).mark_line(
+        strokeWidth=0.8  # Thinner lines
+    ).encode(
         x=alt.X('time:T', 
                title='Time',
                axis=alt.Axis(labelPadding=10, grid=True),
-               scale=alt.Scale(padding=30)),  # Add horizontal padding
+               scale=alt.Scale(padding=100)),  # Much more horizontal padding
         y=alt.Y('Value:Q', 
                title='Value',
                axis=alt.Axis(grid=True)),
@@ -464,16 +516,16 @@ def plot_boolean_status(df):
             device_data
         ).mark_line(
             interpolate='step-after',
-            strokeWidth=1  # Make lines thinner
+            strokeWidth=0.8,  # Even thinner lines
+            color='rgba(1,255,112,0.7)'  # Faded green
         ).encode(
             x=alt.X('time:T', 
                    title=None,
                    axis=alt.Axis(grid=True),
-                   scale=alt.Scale(padding=30)),  # Add horizontal padding
+                   scale=alt.Scale(padding=100)),  # Much more horizontal padding
             y=alt.Y('Status:Q', 
                    scale=alt.Scale(domain=[-0.1, 1.1]),
                    axis=alt.Axis(title=None, labels=False, ticks=False)),
-            color=alt.value('#01FF70'),
             tooltip=['time:T', alt.Tooltip('Status:Q', title=device)]
         ).properties(
             title=device,
@@ -501,13 +553,13 @@ def plot_boolean_status(df):
         mod_chart = alt.Chart(
             mod_data
         ).mark_line(
-            color='#FD971F',  # Orange color for modulation
-            strokeWidth=1  # Make line thinner
+            color='rgba(253,151,31,0.7)',  # Faded orange
+            strokeWidth=0.8  # Thinner line
         ).encode(
             x=alt.X('time:T', 
                    title=None,
                    axis=alt.Axis(grid=True),
-                   scale=alt.Scale(padding=30)),  # Add horizontal padding
+                   scale=alt.Scale(padding=100)),  # Much more horizontal padding
             y=alt.Y('modulation:Q', 
                    title='Modulation %',
                    axis=alt.Axis(grid=True),
