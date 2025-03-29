@@ -46,6 +46,30 @@ def setup_page():
         padding-top: 1rem;
         padding-bottom: 1rem;
     }
+    .big-metric {
+        font-size: 3rem !important;
+        font-weight: bold;
+        color: #e0e0e0;
+    }
+    .metric-label {
+        font-size: 1.2rem;
+        color: #CCCCCC;
+        margin-bottom: 0.5rem;
+    }
+    .target-temp {
+        font-size: 1.5rem;
+        color: #999999;
+        padding-left: 10px;
+    }
+    .metric-container {
+        background-color: #2d2d2d;
+        border-radius: 10px;
+        padding: 20px;
+        text-align: center;
+        margin-bottom: 1.5rem;
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        border: 1px solid #3d3d3d;
+    }
     </style>
     """, unsafe_allow_html=True)
 
@@ -520,20 +544,41 @@ def main():
     
     st.title("ViCare Monitoring")
     
-    # Date range selector
-    col1, col2 = st.columns([3, 1])
-    with col2:
-        days = st.selectbox("Time Range (days)", [1, 2, 3, 7, 14, 30], index=1)
+    # Create a three-column layout for the top section
+    left_col, middle_col, right_col = st.columns([2, 3, 1])
     
-    with col1:
-        st.write(f"Data from the last {days} days")
-        last_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
-        st.write(f"Last update: {last_update}")
+    # Time Range selector in right column
+    with right_col:
+        days = st.selectbox("Time Range (days)", [1, 2, 3, 7, 14, 30], index=1)
     
     # Load data
     df = load_data(days=days)
     
     if df is not None:
+        # Last update info in left column
+        with left_col:
+            st.write(f"Data from the last {days} days")
+            last_update = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
+            st.write(f"Last update: {last_update}")
+            
+        # Display current DHW temperature in middle column
+        if "temp_hotwater" in df.columns:
+            current_temp = df["temp_hotwater"].iloc[-1]  # Get most recent value
+            target_temp = df["temp_hotwater_target"].iloc[-1] if "temp_hotwater_target" in df.columns else None
+            
+            # Place the temperature display in the middle column
+            with middle_col:
+                metric_html = """
+                <div class="metric-container">
+                    <div class="metric-label">Current Hot Water Temperature</div>
+                    <div class="big-metric">{temp:.1f}°C{target}</div>
+                </div>
+                """.format(
+                    temp=current_temp,
+                    target=f'<span class="target-temp">(Target: {target_temp:.1f}°C)</span>' if target_temp else ''
+                )
+                st.markdown(metric_html, unsafe_allow_html=True)
+        
         # Temperature metrics first, now as a separate visualization (not in tabs)
         st.subheader("Temperature Metrics")
         temp_chart = plot_temperatures(df)
