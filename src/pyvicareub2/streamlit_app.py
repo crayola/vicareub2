@@ -32,44 +32,46 @@ def setup_page():
     # Custom CSS
     st.markdown("""
     <style>
+                
+    
     .main {
         background-color: #1a1a1a;
         color: white;
     }
+    
+    /* thing that appears when scrolling up or down */
     .stApp {
-        background-color: #1a1a1a;
+        background-color: #2a2a2a;
     }
-    .stPlot {
-        background-color: #2d2d2d;
-        border-radius: 15px;
-        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
-        padding: 15px;
-        border: 1px solid #3d3d3d;
-        outline: 1px solid #4d4d4d;
-    }
+
+    /* More specific targeting for Vega charts */
+    # div[data-testid="stVerticalBlock"] div.element-container div.stVegaLiteChart {
+    #     background-color: #252525 ;
+    #     border-radius: 26px ;
+    #     box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6) ;
+    #     overflow: hidden ;
+    #     border: 1px solid #3d3d3d ;
+    #     padding: 10px ;
+    # }
+
     /* Apply rounded corners to Vega-Lite chart elements */
     .vega-embed .marks {
-        border-radius: 10px;
-    }
-    /* Add shadow effect for charts */
-    .vega-embed {
-        filter: drop-shadow(0 6px 12px rgba(0, 0, 0, 0.4));
-    }
-    /* Add light grey edge to Vega charts */
-    .vega-embed .chart-wrapper {
         border: 1px solid #4d4d4d;
-        border-radius: 10px;
-        width: 100% !important;
+        border-radius: 25px;
+        max-width: 100% ;     
     }
-    .vega-embed {
-        width: 100% !important;
+    # .vega-embed .chart-wrapper {
+    #     border: 1px solid #4d4d4d;
+    #     border-radius: 25px;
+    #     max-width: 100% ;
+    # }
+    .stHeading {
+        margin-top: 1.5rem;
     }
-    .block-container {
-        padding-top: 1rem;
-        padding-bottom: 1rem;
-    }
+                
+    /* metric */
     .big-metric {
-        font-size: 3rem !important;
+        font-size: 3rem ;
         font-weight: bold;
         color: #e0e0e0;
     }
@@ -85,16 +87,17 @@ def setup_page():
     }
     .metric-container {
         background-color: #2d2d2d;
-        border-radius: 10px;
+        border-radius: 16px;
         padding: 20px;
         text-align: center;
-        margin-bottom: 1.5rem;
-        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.5);
+        box-shadow: 0 8px 16px rgba(0, 0, 0, 0.6);
         border: 1px solid #3d3d3d;
     }
-    /* Section header styling */
-    .stHeading {
-        margin-top: 1.5rem;
+
+    .block-container {
+        padding-top: 1rem;
+        background-color: #1a1a1a;
+        padding-bottom: 1rem;
     }
     </style>
     """, unsafe_allow_html=True)
@@ -235,8 +238,7 @@ def plot_temperatures(df):
     ).encode(
         x=alt.X('time:T', 
                 title='Time',
-                axis=alt.Axis(labelPadding=10),
-                scale=alt.Scale(padding=100)),  # Much more horizontal padding
+                axis=alt.Axis(labelPadding=10)),
         y=alt.Y('Value:Q', 
                 title='System Temperature (°C)',
                 scale=alt.Scale(domain=[system_min - padding, system_max + padding], zero=False),
@@ -252,15 +254,13 @@ def plot_temperatures(df):
         tooltip=['time:T', 'Temperature:N', alt.Tooltip('Value:Q', format='.1f')]
     ).transform_filter(
         ~alt.FieldOneOfPredicate(field='Temperature', oneOf=['temp_hotwater', 'temp_solcollector', 'temp_hotwater_target'])
-    ).properties(
-        height=480  # Reduced from 500 to decrease bottom padding
-    )
+    ).properties()
     
     # Special chart for hotwater and solcollector with thicker lines
     special_temp_chart = alt.Chart(system_data).mark_line(
         strokeWidth=1.5  # Thicker lines
     ).encode(
-        x=alt.X('time:T', scale=alt.Scale(padding=100)),  # Match the padding
+        x=alt.X('time:T'),
         y=alt.Y('Value:Q', scale=alt.Scale(domain=[system_min - padding, system_max + padding])),
         color=alt.Color('Temperature:N', scale=alt.Scale(
             domain=['temp_hotwater', 'temp_solcollector'],
@@ -276,7 +276,7 @@ def plot_temperatures(df):
         strokeWidth=0.8,
         strokeDash=[2, 2]
     ).encode(
-        x=alt.X('time:T', scale=alt.Scale(padding=100)),  # Match the padding
+        x=alt.X('time:T'),
         y=alt.Y('Value:Q', scale=alt.Scale(domain=[system_min - padding, system_max + padding])),
         color=alt.value('rgba(153,153,153,0.8)'),
         tooltip=['time:T', 'Temperature:N', alt.Tooltip('Value:Q', format='.1f')]
@@ -290,12 +290,13 @@ def plot_temperatures(df):
         # Draw night time rectangles with dark blue color and increased opacity
         night_band_chart = alt.Chart(night_df).mark_rect(
             color='#141110',  # Dark blue instead of black
-            opacity=0.35      # Increased opacity for better visibility
+            opacity=0.45      # Increased opacity for better visibility
         ).encode(
             x='start:T',
             x2='end:T',
             y=alt.value(0),  # Span the entire height
-            y2=alt.value(480)  # Match the reduced height
+            y2=alt.value(540),
+            tooltip=alt.value(None)  # Disable tooltip
         )
     
     # Create day time bands for contrast
@@ -325,13 +326,14 @@ def plot_temperatures(df):
     if not day_df.empty:
         # Draw day time rectangles with slightly lighter color
         day_band_chart = alt.Chart(day_df).mark_rect(
-            color='#292b30',  # Slightly lighter than background
-            opacity=0.3       # Subtle opacity
+            color='#191b10',  # Slightly lighter than background
+            opacity=0.45       # Subtle opacity
         ).encode(
             x='start:T',
             x2='end:T',
             y=alt.value(0),
-            y2=alt.value(480)  # Match the reduced height
+            y2=alt.value(540),
+            tooltip=alt.value(None)  # Disable tooltip
         )
     
     # Combine base chart with night and day bands if available
@@ -349,7 +351,9 @@ def plot_temperatures(df):
     chart_layers.append(target_temp_chart)
     
     # Create the combined chart
-    chart_with_bands = alt.layer(*chart_layers)
+    chart_with_bands = alt.layer(*chart_layers).properties(
+        width=900  # Set fixed width to prevent extending too far right
+    )
     
     # If we have outside temperature data, add it on a secondary y-axis
     if has_outside_temp:
@@ -376,18 +380,33 @@ def plot_temperatures(df):
                          alt.Tooltip('Value:Q', title='temp_out', format='.1f')]
             )
             
-            # Create a layered chart with dual y-axes
-            layered_chart = alt.layer(
+            # First create a layer chart without properties
+            layered_base = alt.layer(
                 chart_with_bands,  # Use chart with night bands
                 outside_chart
             ).resolve_scale(
                 y='independent'
             )
             
-            return layered_chart
+            # Then add the properties to the final chart
+            final_chart = layered_base.properties(
+                padding={"left": 30, "top": 30, "right": 30, "bottom": 30},
+                width=900,  # Set fixed width to prevent extending too far right
+                height=700
+            )
+            
+            return final_chart.configure(
+                background= '#2d2d2d'
+            )
     
-    # If no outside temperature, return just the base chart
-    return chart_with_bands
+    # If no outside temperature, apply properties to the final chart
+    return chart_with_bands.properties(
+        # padding={"left": 30, "top": 30, "right": 30, "bottom": 30},
+        # width=900,  # Set fixed width
+        # height=500
+    ).configure(
+        background= '#2d2d2d'
+    )
 
 def plot_system_metrics(df):
     """Plot system metrics using Altair"""
@@ -419,17 +438,6 @@ def plot_system_metrics(df):
         st.warning("No system metrics data available after removing null values.")
         return None
     
-    # Configure the chart's overall appearance
-    config = alt.Config(
-        background='#2d2d2d',
-        axis=alt.AxisConfig(
-            gridColor='#444444',
-            gridOpacity=0.3,
-            labelColor='white',
-            titleColor='white'
-        )
-    )
-    
     # Create base chart with added horizontal padding
     chart = alt.Chart(
         chart_data
@@ -438,8 +446,7 @@ def plot_system_metrics(df):
     ).encode(
         x=alt.X('time:T', 
                title='Time',
-               axis=alt.Axis(labelPadding=10, grid=True),
-               scale=alt.Scale(padding=100)),  # Much more horizontal padding
+               axis=alt.Axis(labelPadding=10, grid=True)),
         y=alt.Y('Value:Q', 
                title='Value',
                axis=alt.Axis(grid=True)),
@@ -449,7 +456,9 @@ def plot_system_metrics(df):
         )),
         tooltip=['time:T', 'Metric:N', 'Value:Q']
     ).properties(
-        height=400
+        height=400,
+        padding={"left": 30, "top": 30, "right": 30, "bottom": 30},
+        width=900  # Set fixed width
     )
     
     return chart.configure(
@@ -521,8 +530,7 @@ def plot_boolean_status(df):
         ).encode(
             x=alt.X('time:T', 
                    title=None,
-                   axis=alt.Axis(grid=True),
-                   scale=alt.Scale(padding=100)),  # Much more horizontal padding
+                   axis=alt.Axis(grid=True)),
             y=alt.Y('Status:Q', 
                    scale=alt.Scale(domain=[-0.1, 1.1]),
                    axis=alt.Axis(title=None, labels=False, ticks=False)),
@@ -558,8 +566,7 @@ def plot_boolean_status(df):
         ).encode(
             x=alt.X('time:T', 
                    title=None,
-                   axis=alt.Axis(grid=True),
-                   scale=alt.Scale(padding=100)),  # Much more horizontal padding
+                   axis=alt.Axis(grid=True)),
             y=alt.Y('modulation:Q', 
                    title='Modulation %',
                    axis=alt.Axis(grid=True),
@@ -577,6 +584,8 @@ def plot_boolean_status(df):
     if charts:
         final_chart = alt.vconcat(*charts).resolve_scale(
             x='shared'
+        ).properties(
+            padding={"left": 30, "top": 30, "right": 30, "bottom": 30},
         )
         return final_chart.configure(
             background='#2d2d2d',
@@ -631,19 +640,19 @@ def main():
                 )
                 st.markdown(metric_html, unsafe_allow_html=True)
         
-        # Temperature metrics first, now as a separate visualization (not in tabs)
+        # Temperature metrics
         st.subheader("Temperature Metrics")
         temp_chart = plot_temperatures(df)
         if temp_chart:
-            st.altair_chart(temp_chart, use_container_width=True)
-            
+            st.altair_chart(temp_chart)
+        
         # Plot boolean status
         st.subheader("Device Activity Status")
         boolean_chart = plot_boolean_status(df)
         if boolean_chart:
             st.altair_chart(boolean_chart, use_container_width=True)
         
-        # System metrics still in its own section
+        # System metrics
         st.subheader("System Metrics")
         system_chart = plot_system_metrics(df)
         if system_chart:
