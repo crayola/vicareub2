@@ -140,19 +140,36 @@ def plot_temperatures(df):
     system_max = system_data['Value'].max()
     padding = (system_max - system_min) * 0.1
     
+    # Create the main chart
     base_chart = alt.Chart(system_data).mark_line().encode(
-        x=alt.X('time:T', title='Time'),
+        x=alt.X('time:T', 
+                title='Time',
+                axis=alt.Axis(labelPadding=10),
+                scale=alt.Scale(padding=30)),  # Add horizontal padding
         y=alt.Y('Value:Q', 
                 title='System Temperature (°C)',
                 scale=alt.Scale(domain=[system_min - padding, system_max + padding], zero=False),
                 axis=alt.Axis(format='.1f')),
-        color=alt.Color('Temperature:N', legend=alt.Legend(
-            orient='top',
-            title=None
-        )),
+        color=alt.Color('Temperature:N', 
+                      legend=alt.Legend(orient='top', title=None),
+                      scale=alt.Scale(
+                          domain=['temp_hotwater_target', 'temp_hotwater', 'temp_solcollector', 
+                                 'temp_boiler', 'temp_heating', 'temp_solstorage'],
+                          range=['#999999', 'blue', 'red', 
+                                '#00BFFF', '#00FF00', '#FFFF00']
+                      )),
+        strokeDash=alt.condition(
+            alt.datum.Temperature == 'temp_hotwater_target',
+            alt.value([2, 2]),
+            alt.value([0])
+        ),
+        strokeWidth=alt.condition(
+            alt.FieldOneOfPredicate(field='Temperature', oneOf=['temp_hotwater', 'temp_solcollector']),
+            alt.value(2),  # For hotwater and solcollector
+            alt.value(1)   # For everything else including target
+        ),
         tooltip=['time:T', 'Temperature:N', alt.Tooltip('Value:Q', format='.1f')]
     ).properties(
-        title='Temperature Metrics',
         height=500
     )
     
@@ -165,7 +182,7 @@ def plot_temperatures(df):
             # Calculate different y-axis domains for better visibility
             outside_min = outside_data['Value'].min()
             outside_max = outside_data['Value'].max()
-            padding = (outside_max - outside_min) * 0.1
+            outside_padding = (outside_max - outside_min) * 0.1
             
             outside_chart = alt.Chart(outside_data).mark_line(
                 color='violet',
@@ -175,8 +192,8 @@ def plot_temperatures(df):
                 x=alt.X('time:T'),
                 y=alt.Y('Value:Q',
                         title='Outside Temperature (°C)',
-                        scale=alt.Scale(domain=[outside_min - padding, outside_max + padding], zero=False),
-                        axis=alt.Axis(format='.1f')),
+                        scale=alt.Scale(domain=[outside_min - outside_padding, outside_max + outside_padding], zero=False),
+                        axis=alt.Axis(format='.1f', grid=False)),
                 tooltip=[alt.Tooltip('time:T'), 
                          alt.Tooltip('Value:Q', title='temp_out', format='.1f')]
             )
@@ -224,21 +241,46 @@ def plot_system_metrics(df):
         st.warning("No system metrics data available after removing null values.")
         return None
     
-    # Create base chart
-    chart = alt.Chart(chart_data).mark_line().encode(
-        x=alt.X('time:T', title='Time'),
-        y=alt.Y('Value:Q', title='Value'),
+    # Configure the chart's overall appearance
+    config = alt.Config(
+        background='#2d2d2d',
+        axis=alt.AxisConfig(
+            gridColor='#444444',
+            gridOpacity=0.3,
+            labelColor='white',
+            titleColor='white'
+        )
+    )
+    
+    # Create base chart with added horizontal padding
+    chart = alt.Chart(
+        chart_data
+    ).mark_line().encode(
+        x=alt.X('time:T', 
+               title='Time',
+               axis=alt.Axis(labelPadding=10, grid=True),
+               scale=alt.Scale(padding=30)),  # Add horizontal padding
+        y=alt.Y('Value:Q', 
+               title='Value',
+               axis=alt.Axis(grid=True)),
         color=alt.Color('Metric:N', legend=alt.Legend(
             orient='top',
             title=None
         )),
         tooltip=['time:T', 'Metric:N', 'Value:Q']
     ).properties(
-        title='System Metrics',
         height=400
     )
     
-    return chart
+    return chart.configure(
+        background='#2d2d2d',
+        axis=alt.AxisConfig(
+            gridColor='#444444',
+            gridOpacity=0.3,
+            labelColor='white',
+            titleColor='white'
+        )
+    )
 
 def plot_boolean_status(df):
     """Plot boolean status of pumps and devices"""
@@ -273,17 +315,33 @@ def plot_boolean_status(df):
     # Create charts for boolean variables
     charts = []
     
+    # Configure the chart's overall appearance
+    config = alt.Config(
+        background='#2d2d2d',
+        axis=alt.AxisConfig(
+            gridColor='#444444',
+            gridOpacity=0.3,
+            labelColor='white',
+            titleColor='white'
+        )
+    )
+    
     for device in available_cols:
         # Create individual device dataframe
         device_data = df[['time', device]].copy()
         device_data.columns = ['time', 'Status']  # Rename for consistency
         
         # Create individual step chart
-        device_chart = alt.Chart(device_data).mark_line(
+        device_chart = alt.Chart(
+            device_data
+        ).mark_line(
             interpolate='step-after',
-            strokeWidth=3
+            strokeWidth=1  # Make lines thinner
         ).encode(
-            x=alt.X('time:T', title=None),
+            x=alt.X('time:T', 
+                   title=None,
+                   axis=alt.Axis(grid=True),
+                   scale=alt.Scale(padding=30)),  # Add horizontal padding
             y=alt.Y('Status:Q', 
                    scale=alt.Scale(domain=[-0.1, 1.1]),
                    axis=alt.Axis(title=None, labels=False, ticks=False)),
@@ -312,13 +370,19 @@ def plot_boolean_status(df):
         mod_data['modulation'] = pd.to_numeric(mod_data['modulation'], errors='coerce').fillna(0)
         
         # Use fixed domain of 0-100
-        mod_chart = alt.Chart(mod_data).mark_line(
+        mod_chart = alt.Chart(
+            mod_data
+        ).mark_line(
             color='#FD971F',  # Orange color for modulation
-            strokeWidth=2
+            strokeWidth=1  # Make line thinner
         ).encode(
-            x=alt.X('time:T', title=None),
+            x=alt.X('time:T', 
+                   title=None,
+                   axis=alt.Axis(grid=True),
+                   scale=alt.Scale(padding=30)),  # Add horizontal padding
             y=alt.Y('modulation:Q', 
                    title='Modulation %',
+                   axis=alt.Axis(grid=True),
                    scale=alt.Scale(domain=[0, 100])),
             tooltip=['time:T', alt.Tooltip('modulation:Q', title='Modulation %', format='.1f')]
         ).properties(
@@ -331,12 +395,18 @@ def plot_boolean_status(df):
     
     # Combine charts with spacing
     if charts:
-        final_chart = alt.vconcat(*charts).properties(
-            title='Device Status & Modulation'
-        ).resolve_scale(
+        final_chart = alt.vconcat(*charts).resolve_scale(
             x='shared'
         )
-        return final_chart
+        return final_chart.configure(
+            background='#2d2d2d',
+            axis=alt.AxisConfig(
+                gridColor='#444444',
+                gridOpacity=0.3,
+                labelColor='white',
+                titleColor='white'
+            )
+        )
     
     return None
 
