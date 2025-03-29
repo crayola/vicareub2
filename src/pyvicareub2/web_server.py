@@ -1,5 +1,5 @@
 import logging
-from datetime import datetime, timedelta
+from datetime import datetime
 from pathlib import Path
 
 import pandas as pd
@@ -40,8 +40,10 @@ def index():
             ],
         )
         last_data_point = (
-            pd.to_datetime(df.iloc[-1]["timestamp"], unit="s") + timedelta(hours=1)
-        ).strftime("%Y-%m-%d %H:%M:%S")
+            (pd.to_datetime(df.iloc[-1]["timestamp"], unit="s", utc=True))
+            .tz_convert(settings.timezone)
+            .strftime("%Y-%m-%d %H:%M:%S")
+        )
     except Exception as e:
         logger.error(f"Error reading last data point: {e}")
         last_data_point = "Error reading data"
@@ -62,6 +64,7 @@ def index():
                         <div class="timestamps">
                             <div class="timestamp">Page updated: {{ timestamp }}</div>
                             <div class="timestamp">Last data point: {{ last_data_point }}</div>
+                            <div class="timezone">Timezone: {{ settings.timezone }}</div>
                         </div>
                     </div>
                     <div class="plots-container">
