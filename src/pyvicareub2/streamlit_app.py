@@ -655,9 +655,10 @@ def create_sparkline(df, column, last_hours=2):
         alt.Chart(sparkline_data)
         .mark_line(color=line_color, strokeWidth=2)
         .encode(
-            x=alt.X("time:T", axis=None), y=alt.Y(column, axis=None, scale=alt.Scale(zero=False))
+            x=alt.X("time:T", axis=None),
+            y=alt.Y(column, axis=None, scale=alt.Scale(zero=False))
         )
-        .properties(height=40, width=100)
+        .properties(height=40, width=100, padding={"top": 0, "right": 0, "bottom": 0, "left": 0})
     )
 
     # Add trend indicator
@@ -675,7 +676,7 @@ def main():
     st.title("ViCare Monitoring")
 
     # Create a three-column layout for the top section
-    left_col, middle_col, right_col = st.columns([2, 3, 1], vertical_alignment="center")
+    left_col, middle_col, _, right_col = st.columns([2, 2, 2, 1], vertical_alignment="center")
 
     # Time Range selector in right column
     with right_col:
@@ -735,8 +736,8 @@ def main():
             }
 
             .vega-embed .marks {
-                border: 0px;
-                border-radius: 0px;
+                border: .3px solid #4d4d4d;
+                border-radius: 10px;
                 max-width: 100% ;
             }
 
@@ -774,7 +775,7 @@ def main():
             # Hot water sparkline with integrated temperature
             if dhw_sparkline is not None:
                 with middle_col:
-                    midleft_col, midright_col = st.columns([1, 2])
+                    midleft_col, midright_col = st.columns([3, 2])
                     midleft_col.markdown(
                         f"""
                     <div class="sparkline-container">
@@ -806,7 +807,7 @@ def main():
                 )
 
                 with middle_col:
-                    midleft_col, midright_col = st.columns([1, 2])
+                    midleft_col, midright_col = st.columns([3, 2])
                     # Solar sparkline with integrated temperature
                     midleft_col.markdown(
                         f"""
