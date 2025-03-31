@@ -31,14 +31,11 @@ dependencies = [
 ]
 
 [dependency-groups]
-dev = [
-    "ruff",
-]
+dev = ["ruff"]
 
 
 [project.scripts]
 vicareub2 = "vicareub2:main"
-vicareub2-db = "pyvicareub2.db_cli:main"
 vicareub2-streamlit = "pyvicareub2.streamlit_app:main"
 
 

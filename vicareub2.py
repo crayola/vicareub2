@@ -3,17 +3,13 @@
 PyViCareUB2 - A monitoring tool for ViCare heating systems
 """
 
-import atexit
 import argparse
+import atexit
 import logging
-import os
-import subprocess
-import sys
 import threading
 import time
 
-from pyvicareub2 import DataCollector, PlotGenerator, ViCareClient, app, settings
-from pyvicareub2.migrate_csv_to_sqlite import migrate_csv_to_sqlite
+from pyvicareub2 import DataCollector, ViCareClient, settings
 from pyvicareub2.run_streamlit import main as run_streamlit
 
 # Configure logging
@@ -31,7 +27,6 @@ def background_task():
     global running
     vicare_client = ViCareClient()
     data_collector = DataCollector()
-    plot_generator = PlotGenerator()
 
     while running:
         try:
@@ -39,19 +34,7 @@ def background_task():
             if not settings.local_mode:
                 # Collect data from ViCare
                 data = vicare_client.get_device_data()
-                data_collector.write_csv(data)
-                # raw_data = vicare_client.get_device_data_json()
-                # data_collector.write_json(raw_data)
-
-            # Generate plots - Skip if using Streamlit for visualization
-            if not settings.use_streamlit:
-                logger.info("Generating plots")
-                try:
-                    plot_data = data_collector.get_data_for_plotting()
-                    plot_generator.generate_plots(plot_data)
-                    logger.info("Successfully generated plots")
-                except Exception as e:
-                    logger.error(f"Error generating plots: {e}")
+                data_collector.write_to_db(data)
 
             logger.info("Completed background task")
         except Exception as e:
@@ -71,16 +54,6 @@ def cleanup():
     logger.info("Stopping background task")
 
 
-def migrate_data_if_needed():
-    """Migrate data from CSV to SQLite if needed"""
-    # Check if database exists
-    if not os.path.exists(settings.database_path):
-        logger.info("Database does not exist, migrating data from CSV")
-        migrate_csv_to_sqlite()
-    else:
-        logger.info("Database already exists, skipping migration")
-
-
 def start_data_collection():
     """Start the background data collection thread"""
     # Register cleanup function
@@ -90,7 +63,7 @@ def start_data_collection():
     background_thread = threading.Thread(target=background_task)
     background_thread.daemon = True
     background_thread.start()
-    
+
     return background_thread
 
 
@@ -99,35 +72,29 @@ def main():
     # Parse command line arguments
     parser = argparse.ArgumentParser(description="ViCareUB2 - ViCare Monitoring Tool")
     parser.add_argument("--streamlit", action="store_true", help="Use Streamlit for visualization")
-    parser.add_argument("--local", action="store_true", help="Run in local mode (no device connection)")
+    parser.add_argument(
+        "--local", action="store_true", help="Run in local mode (no device connection)"
+    )
     args = parser.parse_args()
-    
+
     # Update settings based on arguments
     if args.local:
         settings.local_mode = True
-    
+
     if args.streamlit:
         settings.use_streamlit = True
-    
+
     if settings.local_mode:
         logger.info("Running in local mode - web server and plotting only")
     else:
         logger.info("Running in full mode with ViCare device connection")
 
-    # Migrate data from CSV to SQLite if needed
-    migrate_data_if_needed()
-    
     # Start data collection thread
-    background_thread = start_data_collection()
-    
+    start_data_collection()
+
     # Run the appropriate visualization server
-    if settings.use_streamlit:
-        logger.info("Starting Streamlit visualization server")
-        run_streamlit()
-    else:
-        # Run Flask app
-        logger.info("Starting Flask visualization server")
-        app.run(host=settings.server_host, port=settings.server_port, debug=False)
+    logger.info("Starting Streamlit visualization server")
+    run_streamlit()
 
 
 if __name__ == "__main__":

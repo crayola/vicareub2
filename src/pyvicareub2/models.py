@@ -1,10 +1,8 @@
 """
 Database models for the ViCareUB2 application.
 """
-from datetime import datetime
-from typing import Optional
 
-from sqlalchemy import Column, Integer, Float, Boolean, DateTime, String
+from sqlalchemy import Boolean, Column, DateTime, Float, Integer, String
 from sqlalchemy.ext.declarative import declarative_base
 
 Base = declarative_base()

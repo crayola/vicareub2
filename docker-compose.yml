@@ -7,12 +7,3 @@ services:
       - .:/app
     ports:
       - "8501:8501"
-    # develop:
-    #   watch:
-    #     - action: sync
-    #       path: .
-    #       target: /app
-    #       ignore:
-    #         - .venv/
-    #     - action: rebuild
-    #       path: ./pyproject.toml

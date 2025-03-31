@@ -130,11 +130,11 @@ def load_data(days=2):
             mask = df_for_pivot.variable == var
             if mask.any():
                 # First handle NA values by filling with 0 before conversion
-                df_for_pivot.loc[mask, "value"] = (
-                    pd.to_numeric(df_for_pivot.loc[mask, "value"], errors="coerce")
-                    .fillna(0)
-                    .astype(int)
-                )
+                boolean_col = pd.to_numeric(df_for_pivot.loc[mask, "value"], errors="coerce")
+                # TODO: find a better way to make pyright happy
+                if not isinstance(boolean_col, pd.Series):
+                    continue
+                df_for_pivot.loc[mask, "value"] = boolean_col.fillna(0).astype(int)
 
         # Reverse the modulation normalization (modulation = 2 + original/50)
         # So original = (modulation - 2) * 50
@@ -535,7 +535,7 @@ def plot_boolean_status(df):
             # First make sure we don't have any nulls
             df[col] = df[col].fillna(0)
             # Then convert to numeric with error handling
-            df[col] = pd.to_numeric(df[col], errors="coerce").fillna(0).astype(int)
+            df[col] = pd.Series(pd.to_numeric(df[col], errors="coerce")).fillna(0).astype(int)
 
     # Print raw data for debugging
     st.sidebar.write("Sample boolean data (5 rows):")
@@ -586,7 +586,9 @@ def plot_boolean_status(df):
         mod_data = df[["time", "modulation"]].copy().dropna()
 
         # Handle missing values but don't multiply by 100
-        mod_data["modulation"] = pd.to_numeric(mod_data["modulation"], errors="coerce").fillna(0)
+        mod_data["modulation"] = pd.Series(
+            pd.to_numeric(mod_data["modulation"], errors="coerce")
+        ).fillna(0)
 
         # Use fixed domain of 0-100
         mod_chart = (

@@ -51,6 +51,8 @@ class DatabaseService:
         """Get a new database session."""
         if self._session_factory is None:
             _ = self.engine  # Initialize engine and session factory
+        if self._session_factory is None:
+            raise ValueError("Session factory not initialized")
         return self._session_factory()
 
     def save_heating_data(self, data: Dict[str, Any]) -> None:
@@ -73,7 +75,7 @@ class DatabaseService:
                 timestamp=int(data["timestamp"]),
                 datetime=datetime.fromtimestamp(int(data["timestamp"])),
                 active=active,
-                modulation=float(data.get("modulation")) if "modulation" in data else None,
+                modulation=float(data["modulation"]) if "modulation" in data else None,
                 hours=float(data.get("hours")) if "hours" in data else None,
                 starts=int(data.get("starts")) if "starts" in data else None,
                 temp_out=float(data.get("temp_out")) if "temp_out" in data else None,
