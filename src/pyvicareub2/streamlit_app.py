@@ -518,6 +518,89 @@ def plot_system_metrics(df):
     )
 
 
+def plot_daily_gas_consumption(df):
+    """Plot daily mean modulation and solar production as line charts with legend"""
+    metrics_to_plot = []
+    if "modulation" in df.columns:
+        metrics_to_plot.append('modulation')
+    if "solar_production" in df.columns:
+        metrics_to_plot.append('solar_production')
+
+    if not metrics_to_plot:
+        st.warning("No modulation or solar production data available.")
+        return None
+
+    # Calculate daily aggregation
+    df['date'] = df['time'].dt.date
+    agg_dict = {}
+    if 'modulation' in metrics_to_plot:
+        agg_dict['modulation'] = 'mean'
+    if 'solar_production' in metrics_to_plot:
+        agg_dict['solar_production'] = 'sum'
+    
+    daily_data = df.groupby('date').agg(agg_dict).reset_index()
+    daily_data['date'] = pd.to_datetime(daily_data['date'])
+
+    # Melt data for Altair legend
+    long_daily_data = daily_data.melt(id_vars=['date'], var_name='Metric', value_name='Value')
+
+    # Calculate y-axis domain for modulation if present
+    y_domain_mod = [0, 100]
+    if 'modulation' in metrics_to_plot and not daily_data['modulation'].isnull().all():
+        y_min_mod = daily_data['modulation'].min()
+        y_max_mod = daily_data['modulation'].max()
+        padding_mod = (y_max_mod - y_min_mod) * 0.1
+        y_domain_mod = [max(0, y_min_mod - padding_mod), min(100, y_max_mod + padding_mod)]
+
+    # Base chart using melted data
+    base = alt.Chart(long_daily_data).mark_line(strokeWidth=1.5).encode(
+        x=alt.X("date:T", title="Date", axis=alt.Axis(labelPadding=10, grid=True)),
+        color=alt.Color('Metric:N', 
+                        scale=alt.Scale(domain=['modulation', 'solar_production'], 
+                                        range=["rgba(253,151,31,0.7)", "rgba(255,255,0,0.7)"]), 
+                        legend=alt.Legend(title="Metric", orient="top")),
+        tooltip=['date:T', 'Metric:N', alt.Tooltip('Value:Q', format=".1f")]
+    )
+
+    # Create layers for each metric with independent y-scales
+    layers = []
+    if 'modulation' in metrics_to_plot:
+        mod_layer = base.encode(
+            y=alt.Y('Value:Q', title='Mean Daily Modulation (%)', scale=alt.Scale(domain=y_domain_mod))
+        ).transform_filter(alt.datum.Metric == 'modulation')
+        layers.append(mod_layer)
+
+    if 'solar_production' in metrics_to_plot:
+        solar_layer = base.encode(
+            y=alt.Y('Value:Q', title='Daily Solar Production (kWh)')
+        ).transform_filter(alt.datum.Metric == 'solar_production')
+        layers.append(solar_layer)
+
+    if not layers:
+        st.warning("No data available to plot for Gas Consumption/Solar Production.")
+        return None
+
+    # Combine the layers
+    final_chart = (
+        alt.layer(*layers)
+        .resolve_scale(y="independent")
+        .properties(
+            height=400,
+            padding={"left": 30, "top": 30, "right": 30, "bottom": 30},
+            width=900,
+            title="Daily Gas Consumption Approximation and Solar Production",
+        )
+    )
+
+    return final_chart.configure(
+        background="#2d2d2d",
+        axis=alt.AxisConfig(
+            gridColor="#444444", gridOpacity=0.3, labelColor="white", titleColor="white"
+        ),
+        legend=alt.Legend(labelColor="white", titleColor="white") # Ensure legend text is white
+    )
+
+
 def plot_boolean_status(df):
     """Plot boolean status of pumps and devices"""
     boolean_cols = ["active", "solar_pump", "circulation_pump", "dhw_pump"]
@@ -685,19 +768,15 @@ def main():
     # Load data
     df = load_data(days=days)
 
-    if df is not None:
+    # --- Section for charts dependent on main data load ---
+    if df is not None and not df.empty:
         with left_col:
-            # Center the content vertically
+            # Display last update times
             last_update = datetime.now(pytz.timezone(settings.timezone)).strftime(
                 "%Y-%m-%d %H:%M:%S"
             )
             df["time"] = df["time"].dt.tz_convert(settings.timezone)
             last_data_point = df["time"].iloc[-1].strftime("%Y-%m-%d %H:%M:%S")
-            # last_data_point = (
-            #     (pd.to_datetime(df.iloc[-1]["timestamp"], unit="s", utc=True))
-            #     .tz_convert(settings.timezone)
-            #     .strftime("%Y-%m-%d %H:%M:%S")
-            # )
             st.markdown(
                 f"""
                     <p>Last refresh: {last_update}</p>
@@ -705,151 +784,127 @@ def main():
                 """,
                 unsafe_allow_html=True,
             )
-        # Display current DHW temperature in middle column
+        
+        # Display current temps and sparklines
         if "temp_hotwater" in df.columns:
-            current_temp = df["temp_hotwater"].iloc[-1]  # Get most recent value
-
-            # Get solar storage temps if available
+            current_temp = df["temp_hotwater"].iloc[-1]
             has_solar_storage = "temp_solstorage" in df.columns
             solar_current = df["temp_solstorage"].iloc[-1] if has_solar_storage else None
+            dhw_sparkline, dhw_trend_text, dhw_color = create_sparkline(df, "temp_hotwater") or (None, "", "")
+            solar_sparkline, solar_trend_text, solar_color = (create_sparkline(df, "temp_solstorage") if has_solar_storage else (None, "", ""))
 
-            # Get metrics and create sparklines
-            dhw_sparkline, dhw_trend_text, dhw_color = create_sparkline(df, "temp_hotwater") or (
-                None,
-                "",
-                "",
-            )
-            solar_sparkline, solar_trend_text, solar_color = (
-                create_sparkline(df, "temp_solstorage") if has_solar_storage else (None, "", "")
-            )
-
-            # Apply custom CSS for styling
+            # Apply custom CSS for styling (assuming this CSS is defined elsewhere or here)
             middle_col.markdown(
                 """
-            <style>
-
-            .temp-header {
-                display: flex;
-                justify-content: space-between;
-                align-items: center;
-                margin-bottom: 5px;
-            }
-
-            .vega-embed .marks {
-                border: .3px solid #4d4d4d;
-                border-radius: 10px;
-                max-width: 100% ;
-            }
-
-            .metric-label {
-                font-size: 1.2rem;
-                color: #CCCCCC;
-                margin-bottom: 0;
-                margin-right: 20px;
-            }
-
-            .metric-value {
-                font-size: 3rem;
-                font-weight: bold;
-                color: #e0e0e0;
-                margin: 0;
-            }
-
-            .trend-label {
-                font-size: 12px;
-                font-weight: bold;
-                margin: 0;
-            }
-
-            .sparkline-container {
-                width: 100px;
-            }
-            </style>
-            """,
-                unsafe_allow_html=True,
+                <style>
+                /* CSS styles from previous context */
+                .temp-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 5px; }
+                .vega-embed .marks { border: .3px solid #4d4d4d; border-radius: 10px; max-width: 100% ; }
+                .metric-label { font-size: 1.2rem; color: #CCCCCC; margin-bottom: 0; margin-right: 20px; }
+                .metric-value { font-size: 3rem; font-weight: bold; color: #e0e0e0; margin: 0; }
+                .trend-label { font-size: 12px; font-weight: bold; margin: 0; }
+                .sparkline-container { width: 100px; }
+                </style>
+                """, unsafe_allow_html=True
             )
 
-            # Create dashboard container directly in the column
-            # middle_col.markdown('<div class="metric-dashboard">', unsafe_allow_html=True)
-
-            # Hot water sparkline with integrated temperature
+            # Hot water sparkline
             if dhw_sparkline is not None:
                 with middle_col:
                     midleft_col, midright_col = st.columns([3, 2])
-                    midleft_col.markdown(
-                        f"""
-                    <div class="sparkline-container">
-                        <div class="temp-header">
-                            <div class="metric-label">Hot Water:</div>
-                            <div class="metric-value">{current_temp:.1f}°C</div>
-                        </div>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-                    midright_col.markdown(
-                        f"""
-                    <div class="trend-label" style="color: {dhw_color}">Last 2h: {dhw_trend_text}</div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-                    midright_col.altair_chart(
-                        dhw_sparkline.properties(width=100).configure(background="#2a2a2a"),
-                        use_container_width=False,
-                    )
+                    midleft_col.markdown(f'''<div class="sparkline-container"><div class="temp-header"><div class="metric-label">Hot Water:</div><div class="metric-value">{current_temp:.1f}°C</div></div></div>''', unsafe_allow_html=True)
+                    midright_col.markdown(f'''<div class="trend-label" style="color: {dhw_color}">Last 2h: {dhw_trend_text}</div>''', unsafe_allow_html=True)
+                    midright_col.altair_chart(dhw_sparkline.properties(width=100).configure(background="#2a2a2a"), use_container_width=False)
 
-            # Solar storage section if available
+            # Solar storage sparkline
             if has_solar_storage and solar_current is not None and solar_sparkline is not None:
-                # Add divider
-                middle_col.markdown(
-                    '<hr style="border: none; height: 1px; background-color: #3d3d3d; margin: 0px 0 0px 0;">',
-                    unsafe_allow_html=True,
-                )
-
+                middle_col.markdown('<hr style="border: none; height: 1px; background-color: #3d3d3d; margin: 10px 0;">', unsafe_allow_html=True)
                 with middle_col:
                     midleft_col, midright_col = st.columns([3, 2])
-                    # Solar sparkline with integrated temperature
-                    midleft_col.markdown(
-                        f"""
-                    <div class="sparkline-container">
-                        <div class="temp-header">
-                            <div class="metric-label">Solar Storage:</div>
-                            <div class="metric-value">{solar_current:.1f}°C</div>
-                        </div>
-                    </div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-                    midright_col.markdown(
-                        f"""<div class="trend-label" style="color: {solar_color}">Last 2h: {solar_trend_text}</div>
-                    """,
-                        unsafe_allow_html=True,
-                    )
-                midright_col.altair_chart(
-                    solar_sparkline.properties(width=100).configure(background="#2a2a2a"),
-                    use_container_width=False,
-                )
+                    midleft_col.markdown(f'''<div class="sparkline-container"><div class="temp-header"><div class="metric-label">Solar Storage:</div><div class="metric-value">{solar_current:.1f}°C</div></div></div>''', unsafe_allow_html=True)
+                    midright_col.markdown(f'''<div class="trend-label" style="color: {solar_color}">Last 2h: {solar_trend_text}</div>''', unsafe_allow_html=True)
+                    midright_col.altair_chart(solar_sparkline.properties(width=100).configure(background="#2a2a2a"), use_container_width=False)
 
-            # Close container
-            # middle_col.markdown('</div>', unsafe_allow_html=True)
-
-        # Temperature metrics
+        # Temperature metrics chart
         st.subheader("Temperature Metrics")
         temp_chart = plot_temperatures(df)
         if temp_chart:
             st.altair_chart(temp_chart)
+        else:
+            st.warning("Could not display Temperature Metrics chart.")
 
-        # Plot boolean status
+        # Boolean status chart
         st.subheader("Device Activity Status")
         boolean_chart = plot_boolean_status(df)
         if boolean_chart:
             st.altair_chart(boolean_chart, use_container_width=True)
+        else:
+             st.warning("Could not display Device Activity Status chart.")
 
-        # System metrics
+        # System metrics chart
         st.subheader("System Metrics")
         system_chart = plot_system_metrics(df)
         if system_chart:
             st.altair_chart(system_chart, use_container_width=True)
+        else:
+             st.warning("Could not display System Metrics chart.")
+    
+    # Display message if main data load failed or returned empty
+    elif days is not None: # Only show if a specific time range was selected
+        st.warning(f"No data available for the selected main time period ({days} days). Gas chart below may still work.")
+    else: # If 'All' was selected and failed
+         st.error("Failed to load main data. Gas chart below may still work.")
+
+    # --- Gas Consumption Section (Always attempts to run) ---
+    st.subheader("Gas Consumption Approximation & Solar Production")
+
+    # Add explanatory text about modulation and gas consumption
+    st.markdown("""
+    <div style='background-color: #2d2d2d; padding: 15px; border-radius: 10px; margin-bottom: 20px;'>
+        <h4 style='color: #e0e0e0; margin-top: 0;'>About this approximation:</h4>
+        <p style='color: #CCCCCC; margin-bottom: 10px;'>
+            This chart shows the mean daily modulation percentage as an approximation of gas consumption. 
+            The relationship between modulation and actual gas consumption is complex:
+        </p>
+        <ul style='color: #CCCCCC; margin-bottom: 0;'>
+            <li>Lower modulation (20-30%) is less efficient due to higher heat losses and frequent cycling</li>
+            <li>Higher modulation (70-100%) is more efficient due to continuous operation</li>
+            <li>Actual consumption depends on outside temperature, system efficiency, and operation duration</li>
+        </ul>
+    </div>
+    """, unsafe_allow_html=True)
+
+    # Create columns for the gas consumption chart and its time selector
+    gas_col1, gas_col2 = st.columns([4, 1])
+    
+    with gas_col2:
+        gas_days_options = [7, 14, 30, 90, 180, 365, 'All']
+        gas_days_selected = st.selectbox(
+            "Gas Chart Time Range",
+            gas_days_options,
+            index=3, # Default to 90 days
+            help="Select the time range for the gas consumption approximation chart. 'All' fetches all available data."
+        )
+
+    # Determine days value for data loading
+    gas_days_to_load = None if gas_days_selected == 'All' else gas_days_selected
+
+    # Load data specifically for the gas consumption chart
+    # Use a try-except block for robustness
+    gas_df = None
+    try:
+        gas_df = load_data(days=gas_days_to_load)
+    except Exception as e:
+        logger.error(f"Failed to load data for gas chart: {e}")
+        st.error(f"Error loading data for gas chart: {str(e)}")
+
+    if gas_df is not None:
+        gas_chart = plot_daily_gas_consumption(gas_df)
+        if gas_chart:
+            with gas_col1:
+                st.altair_chart(gas_chart, use_container_width=True)
+    elif gas_days_to_load is not None: # Only show warning if specific days selected resulted in no data
+        st.warning(f"No data available for the selected '{gas_days_selected} days' period for the gas chart.")
 
 
 if __name__ == "__main__":
